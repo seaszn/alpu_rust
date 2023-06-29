@@ -1,6 +1,6 @@
 use ethers::providers::Middleware;
 
-pub mod env;
+pub mod environment;
 pub mod exchanges;
 pub mod networks;
 pub mod utils;
@@ -9,7 +9,7 @@ pub mod utils;
 async fn main() {
     utils::logger::clear_console();
     
-    let f: env::Environment = env::init_environment().await;
+    let f: environment::Environment = environment::init_environment().await;
     let r: ethers::types::U64 = f.provider.get_block_number().await.unwrap();
 
     print!("{}", r)
