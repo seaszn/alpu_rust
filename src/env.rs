@@ -4,10 +4,10 @@ use crate::networks;
 pub fn init_environment() {
     dotenv().ok();
 
-    let config = get_environment_config();
-    let network = networks::get_network(config.chain_id);
+    let config: Configuration = get_environment_config();
+    let network: networks::Network = networks::get_network(config.chain_id);
 
-    // println!("{}", network.tokens.len())
+    println!("{}", network.exchanges.len())
 }
 
 struct Configuration {
@@ -55,7 +55,7 @@ fn get_environment_config() -> Configuration {
         .parse()
         .unwrap();
 
-    let config = Configuration {
+    let config: Configuration = Configuration {
         chain_id,
         rpc_endpoint,
         bundle_executor_address,
