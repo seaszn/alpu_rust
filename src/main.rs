@@ -1,14 +1,9 @@
-use std::io;
+mod env;
+pub mod utils;
+pub mod networks;
 
 fn main() {
-    println!("Hello, world!");
-    println!("Please input your guess");
+    utils::logger::clear_console();
 
-    let mut guess = String::new();
-
-    io::stdin().read_line(&mut guess).expect("Failed to read line");
-
-    println!("You guessed: {}", guess);
-
-    let greeting = guess.contains("hello world");
+    env::init_environment();
 }
