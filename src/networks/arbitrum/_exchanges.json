@@ -25,11 +25,11 @@
     },
     {
         "factory_address": "0x015e379Ce0Ff195228b3A9eBDFA13F9afC155Dd7",
-        "protocol":"UniswapV2",
+        "protocol": "UniswapV2",
         "min_liquidity": 1000,
         "base_fee": 300
     },
-    { 
+    {
         "factory_address": "0xd394E9CC20f43d2651293756F8D320668E850F1b",
         "protocol": "UniswapV2",
         "min_liquidity": 1000,
@@ -41,20 +41,20 @@
         "min_liquidity": 1000,
         "base_fee": 2
     },
-    { 
+    {
         "factory_address": "0xCf083Be4164828f00cAE704EC15a36D711491284",
         "protocol": "UniswapV2",
         "min_liquidity": 1000,
         "base_fee": 20
     },
-    { 
+    {
         "factory_address": "0xCe9240869391928253Ed9cc9Bcb8cb98CB5B0722",
         "protocol": "StableSwap",
         "min_liquidity": 1000,
         "base_fee": 20,
         "stable_fee": 4
     },
-    { 
+    {
         "factory_address": "0x20fAfD2B0Ba599416D75Eb54f48cda9812964f46",
         "protocol": "UniswapV2",
         "min_liquidity": 1000,

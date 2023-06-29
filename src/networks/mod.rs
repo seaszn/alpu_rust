@@ -15,9 +15,10 @@ pub struct Token {
 pub struct Network {
     pub chain_id: i32,
     pub name: String,
-    pub flashloan_pool_address_provider: String,
     pub tokens: Vec<Token>,
     pub exchanges: Vec<Exchange>,
+    pub flashloan_pool_address_provider: String,
+    pub uniswap_query_address: String,
 }
 
 pub fn get_network(chain_id: i32) -> Network {

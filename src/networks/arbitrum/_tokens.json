@@ -47,7 +47,6 @@
         "decimals": 18,
         "flash_loan_enabled": true,
         "ref_symbol": "LINK"
-        
     },
     {
         "symbol": "WBTC",

@@ -11,13 +11,13 @@ pub fn init_environment() {
 }
 
 struct Configuration {
-    chain_id: i32,
-    rpc_endpoint: String,
-    bundle_executor_address: String,
-    private_key: String,
-    min_route_length: i32,
-    max_route_length: i32,
-    min_market_reserves: f32,
+    pub chain_id: i32,
+    pub rpc_endpoint: String,
+    pub bundle_executor_address: String,
+    pub private_key: String,
+    pub min_route_length: i32,
+    pub max_route_length: i32,
+    pub min_market_reserves: f32,
 }
 
 fn get_environment_config() -> Configuration {
