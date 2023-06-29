@@ -15,7 +15,7 @@ struct Balances {
     uint256 _endBalance;
 }
 
-contract BundleExecutorV2 is FlashLoanSimpleReceiverBase {
+contract BundleExecutor is FlashLoanSimpleReceiverBase {
     address private executor = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address private owner = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 

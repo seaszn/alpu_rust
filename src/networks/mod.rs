@@ -1,4 +1,5 @@
 mod arbitrum;
+use ethers::abi::Address;
 use serde::Deserialize;
 
 use crate::{utils, exchanges::Exchange};
@@ -17,8 +18,8 @@ pub struct Network {
     pub name: String,
     pub tokens: Vec<Token>,
     pub exchanges: Vec<Exchange>,
-    pub flashloan_pool_address_provider: String,
-    pub uniswap_query_address: String,
+    pub flashloan_pool_address_provider: Address,
+    pub uniswap_query_address: Address,
 }
 
 pub fn get_network(chain_id: i32) -> Network {

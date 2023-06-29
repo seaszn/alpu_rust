@@ -1,3 +1,4 @@
+use ethers::abi::Address;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -8,7 +9,7 @@ pub enum Protocol{
 
 #[derive(Debug, Deserialize)]
 pub struct Exchange{
-    pub factory_address: String,
+    pub factory_address: Address,
     pub min_liquidity: i32,
     pub protocol: Protocol,
     pub base_fee: i32,
