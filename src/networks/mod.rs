@@ -1,12 +1,11 @@
 mod arbitrum;
 use ethers::prelude::*;
 
-use crate::{exchanges::Exchange, types::Token};
+use crate::exchanges::Exchange;
 
 pub struct Network {
     pub chain_id: i32,
     pub name: String,
-    pub tokens: Vec<Token>,
     pub exchanges: Vec<Exchange>,
     pub flashloan_pool_address_provider: Address,
     pub uniswap_query_address: Address,
@@ -17,5 +16,5 @@ pub fn get_network_instance(chain_id: &i32) -> Network {
         return arbitrum::get_instance();
     }
 
-    panic!("d");
+    panic!("chain_id UNKOWN");
 }

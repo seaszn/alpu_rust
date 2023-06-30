@@ -10,11 +10,12 @@ pub mod utils;
 async fn main() {
     utils::logger::clear_console();
 
-    let env: environment::Environment = environment::init();
+    let env: environment::Environment = environment::init().await;
 
-    for exchange in env.network.exchanges {
-        let markets = exchanges::get_exchange_markets(&exchange, &env.cache).await;
-    }
+    // println!("{:#?}", &env.cache.tokens);
+    // for exchange in env.network.exchanges {
+    //     let markets = exchanges::get_exchange_markets(&exchange, &env.cache).await;
+    // }
 
     print!(
         "{}",

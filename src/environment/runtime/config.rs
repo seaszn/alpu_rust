@@ -1,12 +1,12 @@
 use ethers::types::Address;
 
-pub struct Config{
+pub struct Config {
     pub chain_id: i32,
     pub rpc_endpoint: String,
     pub executor_address: Address,
     pub private_key: String,
     pub route_restraints: (i32, i32),
-    pub min_market_reserves: f32
+    pub min_market_reserves: f32,
 }
 
 pub fn get_runtime_config() -> Config {
