@@ -1,7 +1,7 @@
 use super::Exchange;
 use crate::types::Market;
 
-pub fn get_markets(_exchange: Exchange) -> Vec<Market> {
 
-    return vec![]
+pub fn get_markets<'c>(_exchange: Exchange) -> Vec<&'c Market<'c>> {
+    return vec![];
 }

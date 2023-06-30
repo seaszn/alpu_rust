@@ -1,18 +1,25 @@
-use ethers::abi::Address;
+use ethers::{abi::Address, types::U256};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
+#[derive(Clone, Copy)]
 pub struct Token {
-    pub symbol: String,
     pub contract_address: Address,
-    pub ref_symbol: Option<String>,
     pub flash_loan_enabled: bool,
     pub decimals: i32,
 }
-pub struct Market{
-    pub tokens: [Address; 2],
+
+#[derive(Clone, Copy)]
+pub struct Market<'g> {
     pub contract_address: Address,
+    pub tokens: [&'g Token; 2],
     pub fee: i32,
-    pub stable_fee: Option<i32>,
-    pub stable: bool
+    pub stable: bool,
+    pub reserves: MarketReserves
+}
+
+#[derive(Clone, Copy)]
+pub struct MarketReserves {
+    pub reserve0: U256,
+    pub reserve1: U256
 }
