@@ -13,7 +13,7 @@ pub fn get_chain_id() -> i32 {
 pub fn get_instance() -> Network {
     return Network {
         chain_id: CHAIN_ID,
-        name: NAME.to_string(),
+        name: NAME.to_owned(),
         tokens: vec![],
         exchanges: vec![],
         uniswap_query_address: UNISWAP_QUERY_ADDRESS.parse().unwrap(),

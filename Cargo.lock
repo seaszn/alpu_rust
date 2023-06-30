@@ -53,6 +53,7 @@ version = "0.1.0"
 dependencies = [
  "dotenv",
  "ethers",
+ "indexmap 2.0.0",
  "serde",
  "serde_json",
  "stopwatch",
