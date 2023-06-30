@@ -55,6 +55,7 @@ dependencies = [
  "ethers",
  "futures",
  "indexmap 2.0.0",
+ "lazy_static",
  "mini-redis",
  "rayon",
  "serde",

@@ -13,10 +13,10 @@ pub async fn get_markets(
     exchange: &Exchange,
     runtime_cache: &Cache,
 ) -> Vec<Arc<Market>> {
-    let factory_contract = UniswapV2Factory::new(exchange.factory_address, runtime_cache.client.clone());
+    // let factory_contract = UniswapV2Factory::new(exchange.factory_address);
 
-    let _start: U256 = U256::zero();
-    let _market_count: U256 = factory_contract.all_pairs_length().await.expect("");
+    // let _start: U256 = U256::zero();
+    // let _market_count: U256 = factory_contract.all_pairs_length().await.expect("");
 
     // let batch_count: U256 = market_count / start + 1;
     // let mut result: Vec<Arc<Market>> = vec![];

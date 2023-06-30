@@ -1,7 +1,7 @@
 use ethers::types::Address;
 
 pub struct Config {
-    pub chain_id: i32,
+    pub chain_id: u32,
     pub rpc_endpoint: String,
     pub executor_address: Address,
     pub private_key: String,
@@ -10,7 +10,7 @@ pub struct Config {
 }
 
 pub fn get_runtime_config() -> Config {
-    let chain_id: i32 = std::env::var("CHAIN_ID")
+    let chain_id: u32 = std::env::var("CHAIN_ID")
         .expect("CHAIN_ID must be set")
         .parse()
         .expect("CHAIN_ID must be a number");
