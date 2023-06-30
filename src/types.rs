@@ -1,4 +1,4 @@
-use ethers::{abi::Address, types::U256};
+use ethers::abi::Address;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -10,16 +10,15 @@ pub struct Token {
 }
 
 #[derive(Clone, Copy)]
-pub struct Market<'g> {
+pub struct Market {
     pub contract_address: Address,
-    pub tokens: [&'g Token; 2],
+    pub tokens: [Address; 2],
     pub fee: i32,
     pub stable: bool,
-    pub reserves: MarketReserves
 }
 
-#[derive(Clone, Copy)]
-pub struct MarketReserves {
-    pub reserve0: U256,
-    pub reserve1: U256
-}
+// #[derive(Clone, Copy)]
+// pub struct MarketReserves {
+//     pub reserve0: U256,
+//     pub reserve1: U256
+// }

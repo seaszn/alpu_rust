@@ -22,9 +22,9 @@ pub struct Exchange {
     pub stable_fee: Option<i32>,
 }
 
-pub fn get_exchange_markets<'g>(exchange: Exchange) -> Vec<&'g Market<'g>> {
+pub fn get_exchange_markets(exchange: Exchange) -> Vec<Market> {
     if exchange.protocol == Protocol::UniswapV2 {
-        return uniswap_v2::get_markets::<'g>(exchange);
+        return uniswap_v2::get_markets(exchange);
     }
     else if exchange.protocol == Protocol::StableSwap{
         return stable_swap::get_markets(exchange);

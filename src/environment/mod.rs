@@ -2,13 +2,13 @@ use crate::networks::{get_network_instance, Network};
 use dotenv::dotenv;
 mod runtime;
 
-pub struct Environment<'c> {
-    pub cache: runtime::Cache<'c>,
+pub struct Environment {
+    pub cache: runtime::Cache,
     pub config: runtime::Config,
     pub network: Network,
 }
 
-pub fn init<'c>() -> Environment<'c> {
+pub fn init() -> Environment {
     dotenv().ok();
 
     let config: runtime::Config = runtime::get_runtime_config();

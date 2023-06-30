@@ -14,14 +14,14 @@ use super::config::Config;
 abigen!(UniswapQuery, "src/contracts/abi/UniswapQuery.json");
 abigen!(BundleExecutor, "src/contracts/abi/BundleExecutor.json");
 
-pub struct Cache<'g> {
+pub struct Cache{
     pub client: Arc<SignerMiddleware<Provider<Http>, Wallet<SigningKey>>>,
     pub uniswap_query: UniswapQuery<SignerMiddleware<Provider<Http>, Wallet<SigningKey>>>,
     pub bundle_executor: BundleExecutor<SignerMiddleware<Provider<Http>, Wallet<SigningKey>>>,
-    pub markets: Vec<&'g Market<'g>>,
+    pub markets: Vec<Market>,
 }
 
-pub fn get_runtime_cache<'c>(config: &Config, network: &Network) -> Cache<'c> {
+pub fn get_runtime_cache(config: &Config, network: &Network) -> Cache {
     let provider: Provider<Http> =
         Provider::<Http>::try_from(config.rpc_endpoint.clone()).expect("msg");
 
@@ -36,7 +36,7 @@ pub fn get_runtime_cache<'c>(config: &Config, network: &Network) -> Cache<'c> {
     let uniswap_query = UniswapQuery::new(network.uniswap_query_address, client.clone());
     let bundle_executor = BundleExecutor::new(config.executor_address, client.clone());
 
-    let markets: Vec<&'c Market> = vec![];
+    let markets: Vec<Market> = vec![];
 
     return Cache {
         client,
