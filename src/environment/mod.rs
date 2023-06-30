@@ -1,6 +1,6 @@
 use crate::networks::{get_network_instance, Network};
 use dotenv::dotenv;
-mod runtime;
+pub mod runtime;
 
 pub struct Environment {
     pub cache: runtime::Cache,

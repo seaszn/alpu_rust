@@ -1,6 +1,11 @@
 use ethers::abi::Address;
 use serde::Deserialize;
 use crate::types::Market;
+use ethers::prelude::*;
+use ethers::prelude::k256::ecdsa::SigningKey;
+
+
+use crate::environment::runtime::*;
 
 mod uniswap_v2;
 mod stable_swap;
@@ -22,12 +27,12 @@ pub struct Exchange {
     pub stable_fee: Option<i32>,
 }
 
-pub fn get_exchange_markets(exchange: Exchange) -> Vec<Market> {
+pub async fn get_exchange_markets(exchange: &Exchange, runtime_cache: &Cache) -> Vec<Market> {
     if exchange.protocol == Protocol::UniswapV2 {
-        return uniswap_v2::get_markets(exchange);
+        return uniswap_v2::get_markets(exchange, runtime_cache).await;
     }
     else if exchange.protocol == Protocol::StableSwap{
-        return stable_swap::get_markets(exchange);
+        // return stable_swap::get_markets(exchange);
     }
 
     return vec![]

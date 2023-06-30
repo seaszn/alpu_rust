@@ -3,9 +3,9 @@ use ethers::{
     middleware::SignerMiddleware,
     prelude::k256::ecdsa::SigningKey,
     providers::{Http, Provider},
-    signers::{LocalWallet, Wallet},
+    signers::{LocalWallet, Wallet}
 };
-use std::sync::Arc;
+use std::{sync::Arc};
 
 use crate::{networks::Network, types::Market};
 
