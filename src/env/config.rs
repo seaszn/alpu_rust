@@ -1,53 +1,53 @@
-use ethers::types::Address;
+use crate::utils::parse;
 use dotenv::dotenv;
+use ethers::types::Address;
+use url::Url;
 
 pub struct RuntimeConfig {
     pub chain_id: u32,
-    pub rpc_endpoint: String,
+    pub rpc_endpoint: Url,
+    pub feed_endpoint: Url,
     pub executor_address: Address,
     pub private_key: String,
-    pub route_restraints: (i32, i32),
+    pub route_restraints: (u32, u32),
     pub min_market_reserves: f32,
 }
 
 pub fn init() -> RuntimeConfig {
     dotenv().ok();
 
-    let chain_id: u32 = std::env::var("CHAIN_ID")
-        .expect("CHAIN_ID must be set")
-        .parse()
-        .expect("CHAIN_ID must be a number");
-
-    let rpc_endpoint: String = std::env::var("RPC_ENDPOINT").expect("RPC_ENDPOINT must be set");
-    let private_key: String = std::env::var("PRIVATE_KEY").expect("PRIVATE_KEY must be set");
-    let executor_address: Address = std::env::var("BUNDLE_EXECUTOR")
-        .expect("BUNDLE_EXECUTOR must be set")
-        .parse()
-        .expect("BUNDLE_EXECUTOR is not a valid address");
-
-    let min_route_length: i32 = std::env::var("MIN_ROUTE_LENGTH")
-        .expect("MIN_ROUTE_LENGTH must be set")
-        .parse()
-        .expect("MIN_ROUTE_LENGTH is not a number");
-
-    let max_route_length: i32 = std::env::var("MAX_ROUTE_LENGTH")
-        .expect("MAX_ROUTE_LENGTH must be set")
-        .parse()
-        .expect("MAX_ROUTE_LENGTH is not a number");
-
-    let route_restraints: (i32, i32) = (min_route_length, max_route_length);
-
-    let min_market_reserves: f32 = std::env::var("MIN_MARKET_RESERVES")
-        .expect("MIN_MARKET_RESERVES must be set")
-        .parse()
-        .expect("MIN_MARKET_RESERVES must be a number");
-
     return RuntimeConfig {
-        chain_id,
-        rpc_endpoint,
-        executor_address,
-        private_key,
-        route_restraints,
-        min_market_reserves,
+        chain_id: read_u32("CHAIN_ID"),
+        rpc_endpoint: read_url("RPC_ENDPOINT"),
+        feed_endpoint: read_url("FEED_ENDPOINT"),
+        executor_address: read_address("BUNDLE_EXECUTOR"),
+        private_key: read_string("PRIVATE_KEY"),
+        route_restraints: (read_u32("MIN_ROUTE_LENGTH"), read_u32("MAX_ROUTE_LENGTH")),
+        min_market_reserves: read_f32("MIN_MARKET_RESERVES"),
     };
+}
+
+fn read_address(input: &str) -> Address {
+    parse::address(read_string(input))
+}
+
+fn read_url(input: &str) -> Url {
+    return parse::url(read_string(input));
+}
+
+fn read_u32(input: &str) -> u32 {
+    return parse::u32(read_string(input));
+}
+
+fn read_f32(input: &str) -> f32 {
+    return parse::f32(read_string(input));
+}
+
+fn read_string(input: &str) -> String {
+    let read_result: Result<String, _> = std::env::var(input);
+    if read_result.is_err() {
+        println!("environment variable not set ({})", input);
+    }
+
+    return read_result.unwrap();
 }

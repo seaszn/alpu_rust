@@ -21,7 +21,7 @@ pub struct RuntimeCache {
 
 pub fn init(config: &RuntimeConfig, network: &Network) -> RuntimeCache {
     let provider: Provider<Http> =
-        Provider::<Http>::try_from(config.rpc_endpoint.clone()).expect("msg");
+        Provider::<Http>::try_from(config.rpc_endpoint.as_str()).expect("msg");
 
     let wallet = config
         .private_key
