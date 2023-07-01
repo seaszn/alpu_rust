@@ -1,7 +1,7 @@
-use std::{str::FromStr, sync::Arc};
+use std::sync::Arc;
 
 use super::Network;
-use crate::{types::Token, utils};
+use crate::types::Token;
 
 pub const CHAIN_ID: u32 = 42161;
 const NAME: &str = "arbitrum";

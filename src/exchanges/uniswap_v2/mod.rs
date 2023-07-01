@@ -1,16 +1,14 @@
 use std::sync::*;
 
 use ethers::prelude::*;
-use ethers::types::U256;
+// use ethers::types::U256;
 
 use super::Exchange;
 use crate::types::Market;
 
 abigen!(UniswapV2Factory, "src/exchanges/uniswap_v2/_factory.json");
 
-pub async fn get_markets(
-    exchange: &Exchange,
-) -> Vec<Arc<Market>> {
+pub async fn get_markets(_exchange: &Exchange) -> Vec<Arc<Market>> {
     // let factory_contract = UniswapV2Factory::new(exchange.factory_address);
 
     // let _start: U256 = U256::zero();

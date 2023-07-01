@@ -2,8 +2,8 @@ mod arbitrum;
 use crate::utils;
 use std::sync::Arc;
 
-use ethers::prelude::*;
 use crate::{exchanges::Exchange, types::Token};
+use ethers::prelude::*;
 pub struct Network {
     pub chain_id: u32,
     pub name: String,
