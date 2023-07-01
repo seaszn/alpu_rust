@@ -1,3 +1,4 @@
+mod types;
 mod data_feed;
 
 pub async fn init() {
