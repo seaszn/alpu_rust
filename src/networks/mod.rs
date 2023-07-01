@@ -4,6 +4,9 @@ use std::sync::Arc;
 
 use crate::{exchanges::Exchange, types::Token};
 use ethers::prelude::*;
+
+pub use self::arbitrum::CHAIN_ID as arbitrum;
+
 pub struct Network {
     pub chain_id: u32,
     pub name: String,

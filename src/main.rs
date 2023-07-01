@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate lazy_static;
 
+mod handlers;
 pub mod env;
 pub mod exchanges;
 pub mod networks;
@@ -11,6 +12,7 @@ pub mod utils;
 async fn main() {
     utils::logger::clear_console();
 
+    handlers::init(env::RUNTIME_CONFIG.chain_id).await;
     println!("{}", env::RUNTIME_CONFIG.chain_id);
     // println!("{}", env::RUNTIME_NETWORK.name);
 
