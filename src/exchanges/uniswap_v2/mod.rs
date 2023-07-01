@@ -4,14 +4,12 @@ use ethers::prelude::*;
 use ethers::types::U256;
 
 use super::Exchange;
-use crate::environment::runtime::*;
 use crate::types::Market;
 
 abigen!(UniswapV2Factory, "src/exchanges/uniswap_v2/_factory.json");
 
 pub async fn get_markets(
     exchange: &Exchange,
-    runtime_cache: &Cache,
 ) -> Vec<Arc<Market>> {
     // let factory_contract = UniswapV2Factory::new(exchange.factory_address);
 

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{types::Market, environment::runtime::Cache};
+use crate::{types::Market};
 use ethers::prelude::*;
 use serde::Deserialize;
 
@@ -22,9 +22,9 @@ pub struct Exchange {
     pub stable_fee: Option<i32>,
 }
 
-pub async fn get_exchange_markets(exchange: &Exchange, runtime_cache: &Cache) -> Vec<Arc<Market>> {
+pub async fn get_exchange_markets(exchange: &Exchange) -> Vec<Arc<Market>> {
     if exchange.protocol == Protocol::UniswapV2 {
-        return uniswap_v2::get_markets(exchange, runtime_cache).await;
+        return uniswap_v2::get_markets(exchange).await;
     } else if exchange.protocol == Protocol::StableSwap {
         // return stable_swap::get_markets(exchange);
     }

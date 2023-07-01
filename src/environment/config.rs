@@ -1,6 +1,7 @@
 use ethers::types::Address;
+use dotenv::dotenv;
 
-pub struct Config {
+pub struct RuntimeConfig {
     pub chain_id: u32,
     pub rpc_endpoint: String,
     pub executor_address: Address,
@@ -9,7 +10,9 @@ pub struct Config {
     pub min_market_reserves: f32,
 }
 
-pub fn get_runtime_config() -> Config {
+pub fn init() -> RuntimeConfig {
+    dotenv().ok();
+
     let chain_id: u32 = std::env::var("CHAIN_ID")
         .expect("CHAIN_ID must be set")
         .parse()
@@ -39,7 +42,7 @@ pub fn get_runtime_config() -> Config {
         .parse()
         .expect("MIN_MARKET_RESERVES must be a number");
 
-    return Config {
+    return RuntimeConfig {
         chain_id,
         rpc_endpoint,
         executor_address,

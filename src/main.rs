@@ -1,7 +1,6 @@
 #[macro_use]
 extern crate lazy_static;
 
-
 use std::sync::Arc;
 
 use ethers::providers::Middleware;
@@ -16,12 +15,8 @@ pub mod utils;
 async fn main() {
     utils::logger::clear_console();
 
-    let env: Arc<environment::Environment> = environment::Environment::init().await;
-
-    // println!("{:#?}", &env.cache.tokens);
-    // for exchange in env.network.exchanges {
-    //     let markets = exchanges::get_exchange_markets(&exchange, &env.cache).await;
-    // }
+    println!("{}", environment::RUNTIME_CONFIG.chain_id);
+    println!("{}", environment::NETWORK.name);
 
     // print!(
     //     "{}",
