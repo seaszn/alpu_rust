@@ -7,13 +7,13 @@ use serde::Deserialize;
 mod stable_swap;
 mod uniswap_v2;
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, PartialEq)]
 pub enum Protocol {
     UniswapV2,
     StableSwap,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize)]
 pub struct Exchange {
     pub factory_address: Address,
     pub min_liquidity: i32,

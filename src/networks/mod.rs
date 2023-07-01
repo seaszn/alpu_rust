@@ -13,7 +13,7 @@ pub struct Network {
     pub uniswap_query_address: Address,
 }
 
-pub fn get_instance(chain_id: &u32) -> Network {
+pub fn init(chain_id: &u32) -> Network {
     if *chain_id == arbitrum::CHAIN_ID {
         return arbitrum::get_instance();
     }

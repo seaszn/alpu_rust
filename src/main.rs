@@ -12,7 +12,7 @@ async fn main() {
     utils::logger::clear_console();
 
     println!("{}", env::RUNTIME_CONFIG.chain_id);
-    println!("{}", env::NETWORK.name);
+    println!("{}", env::RUNTIME_NETWORK.name);
 
     // print!(
     //     "{}",

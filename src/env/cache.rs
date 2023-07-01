@@ -10,10 +10,6 @@ use std::sync::Arc;
 use super::config::RuntimeConfig;
 use crate::networks::Network;
 
-// use crate::{networks::Network, types::Token, utils::json::deserialize_token_file};
-
-// use super::config::Config;
-
 abigen!(UniswapQuery, "src/contracts/abi/UniswapQuery.json");
 abigen!(BundleExecutor, "src/contracts/abi/BundleExecutor.json");
 
@@ -33,7 +29,7 @@ pub fn init(config: &RuntimeConfig, network: &Network) -> RuntimeCache {
         .expect("PRIVATE_KEY is not a valid private key");
 
     let client = Arc::new(SignerMiddleware::new(provider.clone(), wallet.clone()));
-   
+
     let uniswap_query = Arc::new(UniswapQuery::new(
         network.uniswap_query_address,
         client.clone(),
@@ -41,9 +37,9 @@ pub fn init(config: &RuntimeConfig, network: &Network) -> RuntimeCache {
 
     let bundle_executor = Arc::new(BundleExecutor::new(config.executor_address, client.clone()));
 
-    return  RuntimeCache{
+    return RuntimeCache {
         client,
         uniswap_query,
-        bundle_executor
+        bundle_executor,
     };
 }
