@@ -62,7 +62,7 @@ fn handle_incomming_data(message: &RelayMessage) -> Vec<Transaction> {
             if message.message.message.header.kind == types::L1MessageType::L2Message as u32 {
                 let data = general_purpose::GeneralPurpose::decode(
                     &general_purpose::STANDARD,
-                    &message.message.message.l2Msg,
+                    &message.message.message.l2_message,
                 )
                 .unwrap();
 

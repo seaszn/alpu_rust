@@ -5,8 +5,6 @@ use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 use crate::types::Transaction;
 
-// use crate::{handlers::arbitrum::tracer::trace_transaction_logs, types::Transaction};
-
 mod data_feed;
 mod types;
 

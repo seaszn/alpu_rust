@@ -1,7 +1,6 @@
-#![allow(non_snake_case)]
-
 use ethers::types::Address;
 use serde::Deserialize;
+use serde;
 
 #[derive(Debug, Deserialize, PartialEq, Eq)]
 pub enum L1MessageType {
@@ -34,29 +33,32 @@ pub struct RelayMessage {
 }
 
 #[derive(Deserialize)]
-// #[serde(rename = "gasPrice")]
 pub struct InternalMessge {
-    pub sequenceNumber: u32,
+    #[serde(rename = "sequenceNumber")]
+    pub sequence_number: u32,
     pub message: InternalMessageData,
 }
 
 #[derive(Deserialize)]
 pub struct InternalMessageData {
     pub message: MessageContent,
-    pub delayedMessagesRead: u32,
+    #[serde(rename = "delayedMessagesRead")]
+    pub delayed_messages_read: u32,
 }
 
 #[derive(Deserialize)]
 pub struct MessageContent {
     pub header: DataHeader,
-    pub l2Msg: String,
+    #[serde(rename = "l2Msg")]
+    pub l2_message: String,
 }
 
 #[derive(Deserialize)]
 pub struct DataHeader {
     pub kind: u32,
     pub sender: Address,
-    pub blockNumber: u32,
+    #[serde(rename = "blockNumber")]
+    pub block_number: u32,
     pub timestamp: u32,
 }
 
