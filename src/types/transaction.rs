@@ -1,5 +1,6 @@
 use ethers::{types::{NameOrAddress, Bytes, U256}};
 
+#[derive(Debug)]
 pub struct Transaction{
     pub to: Option<NameOrAddress>,
     pub from: Option<NameOrAddress>,

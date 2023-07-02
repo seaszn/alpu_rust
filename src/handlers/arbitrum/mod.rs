@@ -1,4 +1,7 @@
 use ethers::abi::Address;
+use tokio::sync::mpsc::{channel, Receiver, Sender};
+
+use crate::types::Transaction;
 
 mod data_feed;
 mod decoder;
@@ -11,5 +14,13 @@ lazy_static! {
 }
 
 pub async fn init() {
-    _ = data_feed::init().await
+    let (sender, mut receiver): (Sender<Vec<Transaction>>, Receiver<_>) = channel(32);
+
+    tokio::spawn(async move {
+        _ = data_feed::init(sender).await;
+    });
+
+    while let Some(message) = receiver.recv().await {
+        println!("tx {:#?}", message)
+    }
 }

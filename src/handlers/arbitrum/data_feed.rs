@@ -3,6 +3,8 @@ use base64::Engine;
 use ethers::utils::rlp::DecoderError;
 use futures::{SinkExt, StreamExt};
 
+use tokio::sync::mpsc::error::SendError;
+use tokio::sync::mpsc::Sender;
 use websocket_lite::{ClientBuilder, Message, Opcode};
 
 use crate::types::Transaction;
@@ -11,7 +13,7 @@ use crate::{env, handlers::arbitrum::types::RelayMessage};
 use super::decoder::decode_transaction;
 use super::types;
 
-pub async fn init() -> websocket_lite::Result<()> {
+pub async fn init(sender: Sender<Vec<Transaction>>) -> websocket_lite::Result<()> {
     let builder = ClientBuilder::from_url(env::RUNTIME_CONFIG.feed_endpoint.clone());
     let mut stream = builder.async_connect().await?;
 
@@ -25,7 +27,14 @@ pub async fn init() -> websocket_lite::Result<()> {
                         let transactions: Vec<Transaction> =
                             handle_incomming_data(&pase_result.unwrap());
 
-                        if transactions.len() > 0 {}
+                        if transactions.len() > 0 {
+                            let result: Result<(), SendError<Vec<Transaction>>> =
+                                sender.send(transactions).await;
+
+                            if result.is_err() {
+                                println!("{:?}", result.unwrap())
+                            }
+                        }
                     }
                 }
 
