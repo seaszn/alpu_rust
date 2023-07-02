@@ -51,6 +51,7 @@ dependencies = [
 name = "alpu_rust"
 version = "0.1.0"
 dependencies = [
+ "base64 0.21.2",
  "dotenv",
  "ethers",
  "futures",

@@ -1,5 +1,6 @@
 #[macro_use]
 extern crate lazy_static;
+extern crate base64;
 
 mod handlers;
 pub mod env;

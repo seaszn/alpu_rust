@@ -3,8 +3,9 @@
 use ethers::types::Address;
 use serde::Deserialize;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, PartialEq, Eq)]
 pub enum L1MessageType {
+    L2Message = 3,
     EndOfBlock = 6,
     L2FundedByL1 = 7,
     RollupEvent = 8,
@@ -16,7 +17,7 @@ pub enum L1MessageType {
     Invalid = 0xff,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, PartialEq, Eq)]
 pub enum L2MessageType {
     UnsignedUserTx = 0,
     ContractTx = 1,
@@ -59,7 +60,7 @@ pub struct DataHeader {
 }
 
 impl RelayMessage {
-    pub fn from(input: &str) -> Option<RelayMessage> {
+    pub fn from_json(input: &str) -> Option<RelayMessage> {
         let result: Result<RelayMessage, serde_json::Error> = serde_json::from_str(&input);
         if result.is_ok() {
             return Option::Some(result.unwrap());

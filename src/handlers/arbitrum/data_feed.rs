@@ -1,11 +1,20 @@
+use base64::engine::general_purpose;
+use base64::Engine;
+use ethers::types::TransactionRequest;
+use ethers::utils::rlp::DecoderError;
+use ethers::{
+    types::transaction::eip1559,
+    utils::{hex, keccak256, rlp},
+};
 use futures::{SinkExt, StreamExt};
-use std::time::Instant;
 
-use websocket_lite::{ClientBuilder, Message, Opcode, Result};
+use websocket_lite::{ClientBuilder, Message, Opcode};
 
 use crate::{env, handlers::arbitrum::types::RelayMessage};
 
-pub async fn init() -> Result<()> {
+use super::types;
+
+pub async fn init() -> websocket_lite::Result<()> {
     let builder = ClientBuilder::from_url(env::RUNTIME_CONFIG.feed_endpoint.clone());
     let mut stream = builder.async_connect().await?;
 
@@ -13,20 +22,12 @@ pub async fn init() -> Result<()> {
         if let Ok(m) = msg {
             match m.opcode() {
                 Opcode::Text => {
-                    let now = Instant::now();
-
-                    let result = RelayMessage::from(m.as_text().unwrap());
+                    let result = RelayMessage::from_json(m.as_text().unwrap());
                     if result.is_some() {
-                        // _ = task::spawn(async{
-                        handle_relay_message(result.unwrap());
-                        // });
+                        handle_relay_message(&result.unwrap());
                     }
-
-                    println!("{:?}", now.elapsed())
                 }
-
                 Opcode::Ping => stream.send(Message::pong(m.into_data())).await?,
-
                 Opcode::Close => {
                     break;
                 }
@@ -38,6 +39,39 @@ pub async fn init() -> Result<()> {
     Ok(())
 }
 
-fn handle_relay_message(_message: RelayMessage) {
-    // println!("message received");
+fn handle_relay_message(message: &RelayMessage) {
+    if message.messages.len() > 0 {
+        for message in &message.messages {
+            if message.message.message.header.kind == types::L1MessageType::L2Message as u32 {
+                let data = general_purpose::GeneralPurpose::decode(
+                    &general_purpose::STANDARD,
+                    &message.message.message.l2Msg,
+                )
+                .unwrap();
+
+                let (message_kind, message_data) = data.split_first().unwrap();
+
+                if i8::from_be_bytes([*message_kind]) == types::L2MessageType::SignedTx as i8 {
+                    let _ = decode_tx(message_data);
+                }
+            }
+        }
+    }
+}
+
+fn decode_tx(data: &[u8]) {
+    let _tx_hash = hex::encode(keccak256(data));
+
+    let legacy_transaction: Result<TransactionRequest, DecoderError> = rlp::decode(data);
+    if legacy_transaction.is_ok() {
+        println!("legacy transaction")
+        // build the transaction
+    }
+
+    let eip1559_transaction: Result<eip1559::Eip1559TransactionRequest, DecoderError> =
+        rlp::decode(data.split_first().unwrap().1);
+    if eip1559_transaction.is_ok() {
+        // build the eip-1559 transaction
+        println!("eip-1559 transaction")
+    }
 }
