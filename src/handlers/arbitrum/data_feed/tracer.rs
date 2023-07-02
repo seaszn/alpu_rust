@@ -5,7 +5,6 @@ use ethers::{
         GethDebugTracingOptions, GethTrace, TransactionRequest,
     },
 };
-
 use crate::env;
 
 extern crate lazy_static;
@@ -58,8 +57,17 @@ pub async fn trace_transaction_logs(tx: TransactionRequest) -> Option<GethTrace>
         .await;
 
     if response.is_ok() {
-        return Some(response.unwrap());
+        let s = response.unwrap();
+        let _f = decode_transaction_logs(s.clone());
+
+        return Some(s);
     } else {
         return None;
     }
+}
+
+fn decode_transaction_logs(trace: GethTrace) -> Option<String> {
+    let GethTrace::Unknown(_value) = trace else {return None;};
+
+    return Some("".to_string());
 }
