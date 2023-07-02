@@ -10,8 +10,11 @@ use websocket_lite::{ClientBuilder, Message, Opcode};
 use crate::types::Transaction;
 use crate::{env, handlers::arbitrum::types::RelayMessage};
 
-use super::decoder::decode_transaction;
+use decoder::decode_transaction;
 use super::types;
+
+mod decoder;
+pub mod tracer;
 
 pub async fn init(sender: Sender<Vec<Transaction>>) -> websocket_lite::Result<()> {
     let builder = ClientBuilder::from_url(env::RUNTIME_CONFIG.feed_endpoint.clone());

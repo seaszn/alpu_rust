@@ -34,6 +34,7 @@ pub struct RelayMessage {
 }
 
 #[derive(Deserialize)]
+// #[serde(rename = "gasPrice")]
 pub struct InternalMessge {
     pub sequenceNumber: u32,
     pub message: InternalMessageData,
