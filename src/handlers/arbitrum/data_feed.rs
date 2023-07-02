@@ -1,17 +1,14 @@
 use base64::engine::general_purpose;
 use base64::Engine;
-use ethers::types::TransactionRequest;
 use ethers::utils::rlp::DecoderError;
-use ethers::{
-    types::transaction::eip1559,
-    utils::{hex, keccak256, rlp},
-};
 use futures::{SinkExt, StreamExt};
 
 use websocket_lite::{ClientBuilder, Message, Opcode};
 
+use crate::types::Transaction;
 use crate::{env, handlers::arbitrum::types::RelayMessage};
 
+use super::decoder::decode_transaction;
 use super::types;
 
 pub async fn init() -> websocket_lite::Result<()> {
@@ -19,15 +16,21 @@ pub async fn init() -> websocket_lite::Result<()> {
     let mut stream = builder.async_connect().await?;
 
     while let Some(msg) = stream.next().await {
-        if let Ok(m) = msg {
-            match m.opcode() {
+        if let Ok(incomming) = msg {
+            match incomming.opcode() {
+                // Incomming opcode
                 Opcode::Text => {
-                    let result = RelayMessage::from_json(m.as_text().unwrap());
-                    if result.is_some() {
-                        handle_relay_message(&result.unwrap());
+                    let pase_result = RelayMessage::from_json(incomming.as_text().unwrap());
+                    if pase_result.is_some() {
+                        let transactions: Vec<Transaction> =
+                            handle_incomming_data(&pase_result.unwrap());
+
+                        if transactions.len() > 0 {}
                     }
                 }
-                Opcode::Ping => stream.send(Message::pong(m.into_data())).await?,
+
+                // Functional opcodes
+                Opcode::Ping => stream.send(Message::pong(incomming.into_data())).await?,
                 Opcode::Close => {
                     break;
                 }
@@ -39,7 +42,9 @@ pub async fn init() -> websocket_lite::Result<()> {
     Ok(())
 }
 
-fn handle_relay_message(message: &RelayMessage) {
+// #[time()]
+fn handle_incomming_data(message: &RelayMessage) -> Vec<Transaction> {
+    let mut result: Vec<Transaction> = Vec::new();
     if message.messages.len() > 0 {
         for message in &message.messages {
             if message.message.message.header.kind == types::L1MessageType::L2Message as u32 {
@@ -52,26 +57,16 @@ fn handle_relay_message(message: &RelayMessage) {
                 let (message_kind, message_data) = data.split_first().unwrap();
 
                 if i8::from_be_bytes([*message_kind]) == types::L2MessageType::SignedTx as i8 {
-                    let _ = decode_tx(message_data);
+                    let transaction: Result<Transaction, DecoderError> =
+                        decode_transaction(message_data);
+
+                    if transaction.is_ok() {
+                        result.push(transaction.unwrap());
+                    }
                 }
             }
         }
     }
-}
 
-fn decode_tx(data: &[u8]) {
-    let _tx_hash = hex::encode(keccak256(data));
-
-    let legacy_transaction: Result<TransactionRequest, DecoderError> = rlp::decode(data);
-    if legacy_transaction.is_ok() {
-        println!("legacy transaction")
-        // build the transaction
-    }
-
-    let eip1559_transaction: Result<eip1559::Eip1559TransactionRequest, DecoderError> =
-        rlp::decode(data.split_first().unwrap().1);
-    if eip1559_transaction.is_ok() {
-        // build the eip-1559 transaction
-        println!("eip-1559 transaction")
-    }
+    return result;
 }
