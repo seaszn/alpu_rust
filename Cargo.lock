@@ -58,6 +58,7 @@ dependencies = [
  "futures-util",
  "hex",
  "lazy_static",
+ "regex",
  "serde",
  "serde_json",
  "tokio",

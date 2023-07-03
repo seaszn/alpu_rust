@@ -1,5 +1,3 @@
-use std::time::Instant;
-
 use base64::engine::general_purpose;
 use base64::Engine;
 use ethers::types::TransactionRequest;
@@ -49,14 +47,11 @@ pub async fn init(sender: Sender<Vec<TransactionLog>>) -> websocket_lite::Result
                                     chain_id: tx.chain_id,
                                 };
 
-                                let start = Instant::now();
                                 let response: Option<Vec<TransactionLog>> =
-                                    tracer::trace_transaction_logs(request, tx.hash).await;
+                                    tracer::trace_transaction_logs(request).await;
 
                                 if response.is_some() {
-                                    println!("{:#?}", start.elapsed());
-
-                                    _= sender.send(response.unwrap()).await;
+                                    _ = sender.send(response.unwrap()).await;
                                 }
                             }
                         }

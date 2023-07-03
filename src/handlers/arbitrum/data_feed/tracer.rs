@@ -1,6 +1,8 @@
 use crate::env;
 use crate::handlers::arbitrum::data_feed::types::TransactionLog;
 use ethers::{
+    abi::AbiEncode,
+    prelude::*,
     providers::Middleware,
     types::{
         BlockId, BlockNumber, GethDebugTracerType, GethDebugTracingCallOptions,
@@ -53,10 +55,7 @@ lazy_static! {
     };
 }
 
-pub async fn trace_transaction_logs(
-    tx: TransactionRequest,
-    hash: String,
-) -> Option<Vec<TransactionLog>> {
+pub async fn trace_transaction_logs(tx: TransactionRequest) -> Option<Vec<TransactionLog>> {
     let client = env::RUNTIME_CACHE.client.clone();
     let response = client
         .debug_trace_call(
@@ -67,13 +66,13 @@ pub async fn trace_transaction_logs(
         .await;
 
     if response.is_ok() {
-        return Some(decode_transaction_logs(response.unwrap(), hash));
+        return Some(decode_transaction_logs(response.unwrap()));
     } else {
         return None;
     }
 }
 
-fn decode_transaction_logs(trace: GethTrace, hash: String) -> Vec<TransactionLog> {
+fn decode_transaction_logs(trace: GethTrace) -> Vec<TransactionLog> {
     let GethTrace::Unknown(value) = trace else {return vec![]};
     let input: &Vec<serde_json::Value> = value.as_array().unwrap();
     let mut logs: Vec<TransactionLog> = vec![];
@@ -92,7 +91,11 @@ fn decode_transaction_logs(trace: GethTrace, hash: String) -> Vec<TransactionLog
                 } else if key == "data" {
                     result.data = buffer_to_hex(value);
                 } else {
-                    // Decode and add topics
+                    result.topics.push(
+                        U256::from_dec_str(value.as_str().unwrap())
+                            .unwrap()
+                            .encode_hex(),
+                    );
                 }
             }
 
@@ -118,7 +121,3 @@ fn buffer_to_hex(value: &Value) -> String {
 
     return format!("0x{}", hex::encode(r));
 }
-
-// fn string_to_hex(value: &Value) -> &str {
-//     return value.as_str().unwrap();
-// }

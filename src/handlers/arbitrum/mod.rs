@@ -12,7 +12,7 @@ pub async fn init() {
 
     while let Some(_balance_changes) = receiver.recv().await {
         if _balance_changes.len() > 0 {
-            println!("{}", _balance_changes.len());
+            println!("found {} logs", _balance_changes.len());
         }
     }
 }

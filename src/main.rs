@@ -9,24 +9,20 @@ pub mod networks;
 pub mod types;
 pub mod utils;
 
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread")]
 async fn main() {
     utils::logger::clear_console();
 
+    println!("\nRunning on {}\n", env::RUNTIME_NETWORK.name);
+
+    println!("Wallet: {}", env::RUNTIME_CACHE.client.address());
+    println!("Executor: {}", env::RUNTIME_CACHE.bundle_executor.address());
+    println!("Query: {}\n", env::RUNTIME_CACHE.uniswap_query.address());
+
+    // RuntimeCache::load_markets();
+    // Get the markets
+
+    // Calculate the route templates
+
     handlers::init(env::RUNTIME_CONFIG.chain_id).await;
-    println!("{}", env::RUNTIME_CONFIG.chain_id);
-    // println!("{}", env::RUNTIME_NETWORK.name);
-
-    // print!(
-    //     "{}",
-    //     env.cache
-    //         .client
-    //         .get_block_number()
-    //         .await
-    //         .expect("Failed to get block number")
-    // )
-    // let mut markets: Vec<market::Market> = vec![];
-    // let mut _routes: Vec<route::MarketRoute> = vec![];
-
-    // market::Market::test();
 }
