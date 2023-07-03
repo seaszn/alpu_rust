@@ -14,7 +14,7 @@ lazy_static! {
 }
 
 pub fn decode_transaction(data: &[u8]) -> Result<Transaction, DecoderError> {
-    let _tx_hash = hex::encode(keccak256(data));
+    let tx_hash = hex::encode(keccak256(data));
     let from: Option<Address> =
         Some(Address::from(*FROM_ADDRESS));
     // let from: Result<Address, _> = "".to_string().parse();
@@ -24,6 +24,7 @@ pub fn decode_transaction(data: &[u8]) -> Result<Transaction, DecoderError> {
         if legacy_transaction.is_ok() {
             let tx = legacy_transaction.unwrap();
             return Ok(Transaction {
+                hash: tx_hash,
                 to: tx.to,
                 value: tx.value,
                 data: tx.data,
@@ -43,6 +44,7 @@ pub fn decode_transaction(data: &[u8]) -> Result<Transaction, DecoderError> {
         let tx = eip1559_transaction.unwrap();
 
         return Ok(Transaction {
+            hash: tx_hash,
             to: tx.to,
             value: tx.value,
             data: tx.data,

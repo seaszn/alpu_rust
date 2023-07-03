@@ -4,6 +4,7 @@ use ethers::{
 
 #[derive(Debug)]
 pub struct Transaction {
+    pub hash: String,
     pub to: Option<NameOrAddress>,
     pub from: Option<Address>,
     pub value: Option<U256>,
