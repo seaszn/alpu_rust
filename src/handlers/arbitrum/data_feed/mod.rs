@@ -1,3 +1,4 @@
+use std::time::Instant;
 use std::vec;
 
 use base64::engine::general_purpose;
@@ -37,7 +38,7 @@ pub async fn init(sender: &Sender<Vec<TransactionLog>>) -> websocket_lite::Resul
                             handle_incomming_data(&pase_result.unwrap());
 
                         if transactions.len() > 0 {
-                            // let f = Instant::now();
+                            let timestamp = Instant::now();
                             let mut join_set: JoinSet<Option<Vec<TransactionLog>>> = JoinSet::new();
                             for tx in transactions {
                                 join_set.spawn(async move {
@@ -75,7 +76,7 @@ pub async fn init(sender: &Sender<Vec<TransactionLog>>) -> websocket_lite::Resul
                             }
 
                             if combined_logs.len() > 0 {
-                                // println!("{:?}", f.elapsed());
+                                println!("{:?}", timestamp.elapsed());
                                 _ = sender.send(combined_logs).await;
                             }
                         }

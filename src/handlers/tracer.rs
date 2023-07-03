@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use crate::env;
 use ethers::{
     abi::AbiEncode,
@@ -77,22 +79,27 @@ fn decode_transaction_logs(trace: GethTrace) -> Vec<TransactionLog> {
     let GethTrace::Unknown(value) = trace else {return vec![]};
     let input: &Vec<serde_json::Value> = value.as_array().unwrap();
     let mut logs: Vec<TransactionLog> = vec![];
+    let markets = env::RUNTIME_CACHE.market_addressess.clone();
 
     for obj in input {
         if obj.is_object() {
             let mut result: TransactionLog = TransactionLog {
-                address: "".to_string(),
-                data: "".to_string(),
+                address: None,
+                data: None,
                 topics: vec![],
             };
 
             for (key, value) in obj.as_object().unwrap() {
                 if key == "address" {
-                    //TODO: Break if address is not a cached market address
-
-                    result.address = buffer_to_hex(value);
+                    let address = buffer_to_hex(value);
+                    if markets.contains(&H160::from_str(&address.as_str()).unwrap().0) {
+                        result.address = Some(address);
+                    }
+                    else {
+                        break;
+                    }
                 } else if key == "data" {
-                    result.data = buffer_to_hex(value);
+                    result.data = Some(buffer_to_hex(value));
                 } else {
                     result.topics.push(
                         U256::from_dec_str(value.as_str().unwrap())
@@ -102,7 +109,9 @@ fn decode_transaction_logs(trace: GethTrace) -> Vec<TransactionLog> {
                 }
             }
 
-            logs.push(result);
+            if result.address.is_some() {
+                logs.push(result);
+            }
         }
     }
 

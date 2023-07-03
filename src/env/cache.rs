@@ -20,7 +20,8 @@ pub struct RuntimeCache {
     pub client: RuntimeClient,
     pub uniswap_query: UniswapQueryContract,
     pub bundle_executor: BundleExecutorContract,
-    pub markets: Vec<Arc<Market>>
+    pub markets: Vec<Arc<Market>>,
+    pub market_addressess: Vec<[u8; 20]>
 }
 
 pub fn init(config: &RuntimeConfig, network: Arc<Network>) -> RuntimeCache {
@@ -48,9 +49,12 @@ pub fn init(config: &RuntimeConfig, network: Arc<Network>) -> RuntimeCache {
         uniswap_query.clone(),
     ));
 
+    let market_addressess: Vec<[u8;20 ]> = markets.clone().iter().map(|x| x.contract_address.0).collect();
+
     return RuntimeCache {
         client,
         markets,
+        market_addressess,
         uniswap_query,
         bundle_executor,
     };
