@@ -12,6 +12,7 @@ pub struct Network {
     pub name: String,
     pub exchanges: Vec<Exchange>,
     pub tokens: Vec<Arc<Token>>,
+    pub lower_token_addressess: Vec<String>,
     pub flashloan_pool_address_provider: Address,
     pub uniswap_query_address: Address,
 }

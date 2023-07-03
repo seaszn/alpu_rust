@@ -11,7 +11,7 @@ use super::{
     config::RuntimeConfig,
     types::{BundleExecutorContract, RuntimeClient, UniswapQueryContract},
 };
-use crate::{exchanges::get_exchange_markets, networks::Network};
+use crate::{exchanges::get_exchange_markets, networks::Network, types::Market};
 
 abigen!(UniswapQuery, "src/contracts/abi/UniswapQuery.json");
 abigen!(BundleExecutor, "src/contracts/abi/BundleExecutor.json");
@@ -20,6 +20,7 @@ pub struct RuntimeCache {
     pub client: RuntimeClient,
     pub uniswap_query: UniswapQueryContract,
     pub bundle_executor: BundleExecutorContract,
+    pub markets: Vec<Arc<Market>>
 }
 
 pub fn init(config: &RuntimeConfig, network: Arc<Network>) -> RuntimeCache {
@@ -41,10 +42,15 @@ pub fn init(config: &RuntimeConfig, network: Arc<Network>) -> RuntimeCache {
     let bundle_executor: BundleExecutorContract =
         Arc::new(BundleExecutor::new(config.executor_address, client.clone()));
 
-    block_on(get_markets(network.clone(), client.clone(), uniswap_query.clone()));
+    let markets = block_on(get_markets(
+        network.clone(),
+        client.clone(),
+        uniswap_query.clone(),
+    ));
 
     return RuntimeCache {
         client,
+        markets,
         uniswap_query,
         bundle_executor,
     };
@@ -54,8 +60,21 @@ async fn get_markets(
     network: Arc<Network>,
     client: RuntimeClient,
     uniswap_query: UniswapQueryContract,
-) {
+) -> Vec<Arc<Market>> {
+    let mut markets: Vec<Arc<Market>> = vec![];
+
     for exchange in &network.exchanges {
-        get_exchange_markets(exchange, network.clone(), client.clone(), uniswap_query.clone()).await;
+        markets.append(
+            (get_exchange_markets(
+                exchange,
+                network.clone(),
+                client.clone(),
+                uniswap_query.clone(),
+            )
+            .await)
+                .as_mut(),
+        );
     }
+
+    return markets;
 }

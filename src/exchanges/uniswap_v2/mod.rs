@@ -1,6 +1,7 @@
-use std::{ops::Mul, sync::*};
+use std::{ops::Mul, sync::*, vec};
 
-use ethers::prelude::*;
+use ethers::{abi::token, prelude::*};
+use tokio::task::JoinSet;
 
 use self::types::{UniswapV2Factory, UniswapV2FactoryContract};
 
@@ -22,58 +23,55 @@ pub async fn get_markets(
     let factory_contract: UniswapV2FactoryContract =
         UniswapV2Factory::new(exchange.factory_address, client);
 
-    let batch_size: U256 = U256::from_dec_str("100").unwrap();
+    let batch_size: U256 = U256::from_dec_str("1000").unwrap();
     let market_count: U256 = factory_contract.all_pairs_length().await.unwrap();
     let batch_count: U256 = market_count / batch_size + 1;
     let exchange_fee: i32 = exchange.base_fee;
 
-    // let tokens = &network.tokens;
+    let mut set: JoinSet<Vec<Market>> = JoinSet::new();
+
     for i in 0..batch_count.as_u32() {
         let query = uniswap_query.clone();
         let factory_address = exchange.factory_address;
         let index = batch_size.mul(i);
-        let net = network.clone();
+        let network = network.clone();
+        let tokens: Arc<Vec<Arc<crate::types::Token>>> = Arc::from(network.tokens.clone());
 
-        let _handle: tokio::task::JoinHandle<_> = tokio::spawn(async move {
-            let response = query
+        set.spawn(async move {
+            let response: Result<Vec<[H160; 3]>, _> = query
                 .get_uniswap_v2_markets(factory_address, index, index + batch_size)
                 .await;
 
+            let mut batch_markets: Vec<Market> = vec![];
+
             if response.is_ok() {
-                let data: Vec<[H160; 3]> = response.unwrap();
-                for element in data {
-                    let token0 = net
-                        .tokens
-                        .clone()
-                        .into_iter()
-                        .find(|x| {
-                            x.contract_address.to_string().to_lowercase()
-                                == element[0].to_string().to_lowercase()
-                        })
-                        .ok_or(false);
+                for element in response.unwrap() {
+                    let token0 = tokens.iter().find(|s| s.contract_address.0 == element[0].0);
+                    let token1 = tokens.iter().find(|s| s.contract_address.0 == element[1].0);
 
-                    let token1 = net
-                        .tokens
-                        .clone()
-                        .into_iter()
-                        .find(|f| {
-                            f.contract_address.to_string().to_lowercase()
-                                == element[1].to_string().to_lowercase()
-                        })
-                        .ok_or(false);
-
-                    if !token0.is_err() && !token1.is_err() {
-                        let _market = Arc::new(Market {
+                    if token0.is_some() && token1.is_some() {
+                        batch_markets.push(Market {
                             contract_address: element[2],
-                            tokens: [token0.unwrap(), token1.unwrap()],
+                            tokens: [token0.unwrap().clone(), token1.unwrap().clone()],
                             fee: exchange_fee,
                             stable: false,
                         });
                     }
                 }
             }
+
+            return batch_markets;
         });
     }
 
-    return vec![];
+    let mut exchange_markets: Vec<Arc<Market>> = vec![];
+    while let Some(res) = set.join_next().await {
+        let response = res.unwrap();
+
+        for market in response{
+            exchange_markets.push(Arc::new(market));
+        }
+    }
+
+    return exchange_markets;
 }

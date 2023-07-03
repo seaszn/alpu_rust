@@ -4,7 +4,7 @@ use ethers::types::Address;
 
 use super::Token;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Market {
     pub contract_address: Address,
     pub tokens: [Arc<Token>; 2],
