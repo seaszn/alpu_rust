@@ -1,5 +1,7 @@
 use crate::networks;
 
+mod types;
+mod tracer;
 mod arbitrum;
 
 pub async fn init(chain_id: u32) {

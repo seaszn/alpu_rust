@@ -1,6 +1,6 @@
 use std::{ops::Mul, sync::*, vec};
 
-use ethers::{abi::token, prelude::*};
+use ethers::prelude::*;
 use tokio::task::JoinSet;
 
 use self::types::{UniswapV2Factory, UniswapV2FactoryContract};
@@ -68,7 +68,7 @@ pub async fn get_markets(
     while let Some(res) = set.join_next().await {
         let response = res.unwrap();
 
-        for market in response{
+        for market in response {
             exchange_markets.push(Arc::new(market));
         }
     }

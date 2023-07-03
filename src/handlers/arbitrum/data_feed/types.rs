@@ -27,12 +27,6 @@ pub enum L2MessageType {
 }
 
 #[derive(Deserialize)]
-pub struct RelayMessage {
-    pub version: u32,
-    pub messages: Vec<InternalMessge>,
-}
-
-#[derive(Deserialize)]
 pub struct InternalMessge {
     #[serde(rename = "sequenceNumber")]
     pub sequence_number: u32,
@@ -62,6 +56,13 @@ pub struct DataHeader {
     pub timestamp: u32,
 }
 
+
+#[derive(Deserialize)]
+pub struct RelayMessage {
+    pub version: u32,
+    pub messages: Vec<InternalMessge>,
+}
+
 impl RelayMessage {
     pub fn from_json(input: &str) -> Option<RelayMessage> {
         let result: Result<RelayMessage, serde_json::Error> = serde_json::from_str(&input);
@@ -72,10 +73,3 @@ impl RelayMessage {
         }
     }
 }
-
-pub struct TransactionLog {
-    pub data: String,
-    pub address: String,
-    pub topics: Vec<String>,
-}
-

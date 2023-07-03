@@ -1,5 +1,4 @@
 use crate::env;
-use crate::handlers::arbitrum::data_feed::types::TransactionLog;
 use ethers::{
     abi::AbiEncode,
     prelude::*,
@@ -10,6 +9,8 @@ use ethers::{
     },
 };
 use serde_json::Value;
+
+use super::types::TransactionLog;
 
 extern crate lazy_static;
 
@@ -79,7 +80,7 @@ fn decode_transaction_logs(trace: GethTrace) -> Vec<TransactionLog> {
 
     for obj in input {
         if obj.is_object() {
-            let mut result = TransactionLog {
+            let mut result: TransactionLog = TransactionLog {
                 address: "".to_string(),
                 data: "".to_string(),
                 topics: vec![],
@@ -87,6 +88,8 @@ fn decode_transaction_logs(trace: GethTrace) -> Vec<TransactionLog> {
 
             for (key, value) in obj.as_object().unwrap() {
                 if key == "address" {
+                    //TODO: Break if address is not a cached market address
+
                     result.address = buffer_to_hex(value);
                 } else if key == "data" {
                     result.data = buffer_to_hex(value);
@@ -109,7 +112,7 @@ fn decode_transaction_logs(trace: GethTrace) -> Vec<TransactionLog> {
 fn buffer_to_hex(value: &Value) -> String {
     let mut r: Vec<u8> = vec![];
     for (key, value) in value.as_object().unwrap() {
-        let index: usize = key.to_string().parse().unwrap();
+        let index: usize = key.parse().unwrap();
         let bytecode: u8 = value.as_u64().unwrap().to_string().parse().unwrap();
 
         if index >= r.len() {
