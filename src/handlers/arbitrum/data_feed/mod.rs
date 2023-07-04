@@ -65,19 +65,12 @@ pub async fn init(sender: &Sender<Vec<RawLog>>) -> websocket_lite::Result<()> {
                             }
 
                             let mut combined_logs: Vec<RawLog> = vec![];
-                            while let Some(result) = join_set.join_next().await {
-                                if result.is_ok() {
-                                    let logs = result.unwrap();
-
-                                    if logs.is_some() {
-                                        combined_logs.append(&mut logs.unwrap())
-                                    }
-                                }
+                            while let Some(Ok(result)) = join_set.join_next().await {
+                                combined_logs.append(result.unwrap().as_mut())
                             }
 
                             if combined_logs.len() > 0 {
-
-                                	// decode all the logs here
+                                // decode all the logs here
 
                                 println!("{:?}", timestamp.elapsed());
                                 _ = sender.send(combined_logs).await;
