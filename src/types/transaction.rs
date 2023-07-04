@@ -1,6 +1,5 @@
-use ethers::{
-    types::{Address, Bytes, NameOrAddress, U256, U64},
-};
+use ethers::abi::RawLog;
+use ethers::types::{Address, Bytes, NameOrAddress, U256, U64};
 
 #[derive(Debug)]
 pub struct Transaction {
@@ -12,5 +11,10 @@ pub struct Transaction {
     pub gas: Option<U256>,
     pub gas_price: Option<U256>,
     pub nonce: Option<U256>,
-    pub chain_id: Option<U64>
+    pub chain_id: Option<U64>,
+}
+
+pub struct TransactionLog {
+    pub address: String,
+    pub info: RawLog,
 }

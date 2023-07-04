@@ -3,16 +3,25 @@ use std::{ops::Mul, sync::*, vec};
 use ethers::prelude::*;
 use tokio::task::JoinSet;
 
-use self::types::{UniswapV2Factory, UniswapV2FactoryContract};
+use self::types::{
+    UniswapV2Factory, UniswapV2FactoryContract, UniswapV2Pair, UniswapV2PairContract,
+};
 
 use super::Exchange;
 use crate::{
     env::types::{RuntimeClient, UniswapQueryContract},
     networks::Network,
-    types::Market,
+    types::{Market, TransactionLog},
 };
 
 mod types;
+
+lazy_static! {
+    static ref PAIR_INTERFACE: UniswapV2PairContract = UniswapV2Pair::new(
+        *crate::env::ZERO_ADDRESS,
+        crate::env::RUNTIME_CACHE.client.clone()
+    );
+}
 
 pub async fn get_markets(
     exchange: &Exchange,
@@ -74,4 +83,8 @@ pub async fn get_markets(
     }
 
     return exchange_markets;
+}
+
+pub async fn parse_logs(_logs: TransactionLog) {
+    // let s: Result<Vec<EthLogDecode>, abi::Error> = ethers::contract::decode_logs(logs);
 }

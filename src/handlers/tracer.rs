@@ -1,8 +1,6 @@
-use std::str::FromStr;
-
 use crate::env;
 use ethers::{
-    abi::AbiEncode,
+    abi::{AbiEncode, RawLog},
     prelude::*,
     providers::Middleware,
     types::{
@@ -11,8 +9,6 @@ use ethers::{
     },
 };
 use serde_json::Value;
-
-use super::types::TransactionLog;
 
 extern crate lazy_static;
 
@@ -58,7 +54,7 @@ lazy_static! {
     };
 }
 
-pub async fn trace_transaction_logs(tx: TransactionRequest) -> Option<Vec<TransactionLog>> {
+pub async fn trace_transaction_logs(tx: TransactionRequest) -> Option<Vec<RawLog>> {
     let client = env::RUNTIME_CACHE.client.clone();
     let response = client
         .debug_trace_call(
@@ -75,41 +71,29 @@ pub async fn trace_transaction_logs(tx: TransactionRequest) -> Option<Vec<Transa
     }
 }
 
-fn decode_transaction_logs(trace: GethTrace) -> Vec<TransactionLog> {
+fn decode_transaction_logs(trace: GethTrace) -> Vec<RawLog> {
     let GethTrace::Unknown(value) = trace else {return vec![]};
     let input: &Vec<serde_json::Value> = value.as_array().unwrap();
-    let mut logs: Vec<TransactionLog> = vec![];
+    let mut logs: Vec<RawLog> = vec![];
     let markets = env::RUNTIME_CACHE.market_addressess.clone();
 
     for obj in input {
         if obj.is_object() {
-            let mut result: TransactionLog = TransactionLog {
-                address: None,
-                data: None,
+            let mut result: RawLog = RawLog {
                 topics: vec![],
+                data: vec![],
             };
 
-            for (key, value) in obj.as_object().unwrap() {
-                if key == "address" {
-                    let address = buffer_to_hex(value);
-                    if markets.contains(&H160::from_str(&address.as_str()).unwrap().0) {
-                        result.address = Some(address);
+            let object = obj.as_object().unwrap();
+            if markets.contains(&parse_address_buffer(&object["address"])) {
+                for (key, value) in obj.as_object().unwrap() {
+                    if key == "data" {
+                        result.data = sort_buffer(value).to_vec();
+                    } else if key != "address" {
+                        result.topics.push(parse_topic_buffer(value));
                     }
-                    else {
-                        break;
-                    }
-                } else if key == "data" {
-                    result.data = Some(buffer_to_hex(value));
-                } else {
-                    result.topics.push(
-                        U256::from_dec_str(value.as_str().unwrap())
-                            .unwrap()
-                            .encode_hex(),
-                    );
                 }
-            }
 
-            if result.address.is_some() {
                 logs.push(result);
             }
         }
@@ -118,18 +102,30 @@ fn decode_transaction_logs(trace: GethTrace) -> Vec<TransactionLog> {
     return logs;
 }
 
-fn buffer_to_hex(value: &Value) -> String {
-    let mut r: Vec<u8> = vec![];
+fn sort_buffer(value: &Value) -> Vec<u8> {
+    let mut buffer: Vec<u8> = vec![];
     for (key, value) in value.as_object().unwrap() {
         let index: usize = key.parse().unwrap();
         let bytecode: u8 = value.as_u64().unwrap().to_string().parse().unwrap();
 
-        if index >= r.len() {
-            r.push(bytecode);
+        if index >= buffer.len() {
+            buffer.push(bytecode);
         } else {
-            r.insert(index, bytecode)
+            buffer.insert(index, bytecode)
         }
     }
 
-    return format!("0x{}", hex::encode(r));
+    return buffer;
+}
+
+fn parse_address_buffer(value: &Value) -> [u8; 20] {
+    return H160::from_slice(&sort_buffer(&value)).0;
+}
+
+fn parse_topic_buffer(value: &Value) -> H256 {
+    let s: Vec<u8> = U256::from_dec_str(value.as_str().unwrap())
+        .unwrap()
+        .encode();
+    
+    return H256::from_slice(s.as_slice());
 }

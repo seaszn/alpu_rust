@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::{
     env::types::{RuntimeClient, UniswapQueryContract},
     networks::Network,
-    types::Market,
+    types::*,
 };
 use ethers::prelude::*;
 use serde::Deserialize;
@@ -41,4 +41,13 @@ pub async fn get_exchange_markets(
     }
 
     return vec![];
+}
+
+pub async fn parse_logs(exchange: &Exchange, logs: TransactionLog) {
+
+    if exchange.protocol == Protocol::UniswapV2 {
+        return uniswap_v2::parse_logs(logs).await;
+    } else if exchange.protocol == Protocol::StableSwap {
+        // return stable_swap::get_markets(exchange);
+    }
 }

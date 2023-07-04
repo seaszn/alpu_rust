@@ -3,6 +3,7 @@ use std::vec;
 
 use base64::engine::general_purpose;
 use base64::Engine;
+use ethers::abi::RawLog;
 use ethers::types::TransactionRequest;
 use ethers::utils::rlp::DecoderError;
 use futures::{SinkExt, StreamExt};
@@ -13,7 +14,6 @@ use websocket_lite::{ClientBuilder, Message, Opcode};
 
 use crate::env;
 use crate::handlers::tracer;
-use crate::handlers::types::TransactionLog;
 use crate::types::Transaction;
 
 use decoder::decode_transaction;
@@ -23,7 +23,7 @@ use self::types::RelayMessage;
 mod decoder;
 mod types;
 
-pub async fn init(sender: &Sender<Vec<TransactionLog>>) -> websocket_lite::Result<()> {
+pub async fn init(sender: &Sender<Vec<RawLog>>) -> websocket_lite::Result<()> {
     let builder = ClientBuilder::from_url(env::RUNTIME_CONFIG.feed_endpoint.clone());
     let mut stream = builder.async_connect().await?;
 
@@ -39,7 +39,7 @@ pub async fn init(sender: &Sender<Vec<TransactionLog>>) -> websocket_lite::Resul
 
                         if transactions.len() > 0 {
                             let timestamp = Instant::now();
-                            let mut join_set: JoinSet<Option<Vec<TransactionLog>>> = JoinSet::new();
+                            let mut join_set: JoinSet<Option<Vec<RawLog>>> = JoinSet::new();
                             for tx in transactions {
                                 join_set.spawn(async move {
                                     let request: TransactionRequest = TransactionRequest {
@@ -53,7 +53,7 @@ pub async fn init(sender: &Sender<Vec<TransactionLog>>) -> websocket_lite::Resul
                                         chain_id: tx.chain_id,
                                     };
 
-                                    let response: Option<Vec<TransactionLog>> =
+                                    let response: Option<Vec<RawLog>> =
                                         tracer::trace_transaction_logs(request).await;
 
                                     if response.is_some() {
@@ -64,7 +64,7 @@ pub async fn init(sender: &Sender<Vec<TransactionLog>>) -> websocket_lite::Resul
                                 });
                             }
 
-                            let mut combined_logs: Vec<TransactionLog> = vec![];
+                            let mut combined_logs: Vec<RawLog> = vec![];
                             while let Some(result) = join_set.join_next().await {
                                 if result.is_ok() {
                                     let logs = result.unwrap();
@@ -76,6 +76,9 @@ pub async fn init(sender: &Sender<Vec<TransactionLog>>) -> websocket_lite::Resul
                             }
 
                             if combined_logs.len() > 0 {
+
+                                	// decode all the logs here
+
                                 println!("{:?}", timestamp.elapsed());
                                 _ = sender.send(combined_logs).await;
                             }

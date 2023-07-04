@@ -1,6 +1,5 @@
 use crate::networks;
 
-mod types;
 mod tracer;
 mod arbitrum;
 
