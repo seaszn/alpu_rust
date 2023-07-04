@@ -1,6 +1,6 @@
 use crate::env;
 use ethers::{
-    abi::{AbiEncode, RawLog},
+    abi::{encode, AbiEncode, RawLog},
     prelude::*,
     providers::Middleware,
     types::{
@@ -67,6 +67,7 @@ pub async fn trace_transaction_logs(tx: TransactionRequest) -> Option<Vec<RawLog
     if response.is_ok() {
         return Some(decode_transaction_logs(response.unwrap()));
     } else {
+        println!("{}", response.unwrap_err());
         return None;
     }
 }
@@ -77,7 +78,7 @@ fn decode_transaction_logs(trace: GethTrace) -> Vec<RawLog> {
     let mut logs: Vec<RawLog> = vec![];
     let markets = env::RUNTIME_CACHE.market_addressess.clone();
 
-    for obj in input {
+    'input_loop: for obj in input {
         if obj.is_object() {
             let mut result: RawLog = RawLog {
                 topics: vec![],
@@ -90,11 +91,21 @@ fn decode_transaction_logs(trace: GethTrace) -> Vec<RawLog> {
                     if key == "data" {
                         result.data = sort_buffer(value).to_vec();
                     } else if key != "address" {
-                        result.topics.push(parse_topic_buffer(value));
+                        let topic_data = parse_topic_buffer(value);
+
+                        if topic_data.is_some() {
+                            result.topics.push(topic_data.unwrap());
+                        }
+                        else {
+                            println!("{:?}", "skipped");
+                            continue 'input_loop;
+                        }
                     }
                 }
 
-                logs.push(result);
+                if result.data.len() > 0 {
+                    logs.push(result);
+                }
             }
         }
     }
@@ -119,13 +130,16 @@ fn sort_buffer(value: &Value) -> Vec<u8> {
 }
 
 fn parse_address_buffer(value: &Value) -> [u8; 20] {
-    return H160::from_slice(&sort_buffer(&value)).0;
+    return sort_buffer(&value)[0..20].try_into().unwrap();
 }
 
-fn parse_topic_buffer(value: &Value) -> H256 {
-    let s: Vec<u8> = U256::from_dec_str(value.as_str().unwrap())
-        .unwrap()
-        .encode();
-    
-    return H256::from_slice(s.as_slice());
+fn parse_topic_buffer(value: &Value) -> Option<H256> {
+    let s: Result<U256, abi::ethereum_types::FromDecStrErr> =
+        U256::from_dec_str(value.as_str().unwrap());
+
+    if s.is_ok() {
+        return Some(H256::from_slice(s.unwrap().encode().as_slice()));
+    }
+
+    return None;
 }

@@ -66,7 +66,10 @@ pub async fn init(sender: &Sender<Vec<RawLog>>) -> websocket_lite::Result<()> {
 
                             let mut combined_logs: Vec<RawLog> = vec![];
                             while let Some(Ok(result)) = join_set.join_next().await {
-                                combined_logs.append(result.unwrap().as_mut())
+
+                                if result.is_some() {
+                                    combined_logs.append(result.unwrap().as_mut())
+                                }
                             }
 
                             if combined_logs.len() > 0 {
