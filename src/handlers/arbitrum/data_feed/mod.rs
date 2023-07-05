@@ -10,7 +10,7 @@ use websocket_lite::{ClientBuilder, Message, Opcode};
 use crate::env;
 use crate::exchanges::parse_balance_changes;
 use crate::handlers::tracer;
-use crate::handlers::types::swap::Swap;
+use crate::handlers::types::swap::BalanceChange;
 use crate::types::{Transaction, TransactionLog};
 
 use self::types::RelayMessage;
@@ -18,7 +18,7 @@ use self::types::RelayMessage;
 mod decoder;
 mod types;
 
-pub async fn init(sender: &Sender<Vec<Swap>>) -> websocket_lite::Result<()> {
+pub async fn init(sender: &Sender<Vec<BalanceChange>>) -> websocket_lite::Result<()> {
     let builder: ClientBuilder = ClientBuilder::from_url(env::RUNTIME_CONFIG.feed_endpoint.clone());
     let mut stream = builder.async_connect().await?;
 
@@ -36,7 +36,7 @@ pub async fn init(sender: &Sender<Vec<Swap>>) -> websocket_lite::Result<()> {
     Ok(())
 }
 
-async fn handle_text_message(incomming: Message, sender: &Sender<Vec<Swap>>) {
+async fn handle_text_message(incomming: Message, sender: &Sender<Vec<BalanceChange>>) {
     let pase_result = RelayMessage::from_json(incomming.as_text().unwrap());
     if pase_result.is_some() {
         let transactions: Vec<Transaction> = pase_result.unwrap().decode();
@@ -66,7 +66,7 @@ async fn handle_text_message(incomming: Message, sender: &Sender<Vec<Swap>>) {
             }
 
             if combined_logs.len() > 0 {
-                let balance_changes: Vec<Swap> = parse_balance_changes(combined_logs);
+                let balance_changes: Vec<BalanceChange> = parse_balance_changes(combined_logs);
 
                 println!("{:?}", timestamp.elapsed());
                 _ = sender.send(balance_changes).await;

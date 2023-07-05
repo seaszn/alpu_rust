@@ -88,8 +88,8 @@ fn decode_trace(trace: GethTrace) -> Vec<TransactionLog> {
 
             if let Some(market) = types::market::from_address(address) {
                 let mut raw_log: RawLog = RawLog {
-                    topics: vec![],
                     data: vec![],
+                    topics: vec![],
                 };
 
                 for (key, value) in input_element.as_object().unwrap() {
