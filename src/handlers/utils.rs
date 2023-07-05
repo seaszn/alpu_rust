@@ -1,4 +1,7 @@
-use ethers::{types::*, abi::{ethereum_types::FromDecStrErr, AbiEncode}};
+use ethers::{
+    abi::{ethereum_types::FromDecStrErr, AbiEncode},
+    types::*,
+};
 use serde_json::Value;
 
 pub fn parse_address(value: &Value) -> H160 {
@@ -6,11 +9,14 @@ pub fn parse_address(value: &Value) -> H160 {
 }
 
 pub fn parse_topic_buffer(value: &Value) -> Option<H256> {
-    let s: Result<U256, FromDecStrErr> =
-        U256::from_dec_str(value.as_str().unwrap());
+    if !value.is_string() {
+        return None;
+    }
 
-    if s.is_ok() {
-        return Some(H256::from_slice(s.unwrap().encode().as_slice()));
+    let parse_result: Result<U256, FromDecStrErr> = U256::from_dec_str(value.as_str().unwrap());
+
+    if parse_result.is_ok() {
+        return Some(H256::from_slice(parse_result.unwrap().encode().as_slice()));
     }
 
     return None;

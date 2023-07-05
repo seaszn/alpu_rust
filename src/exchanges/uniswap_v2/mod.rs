@@ -1,9 +1,6 @@
 use std::{ops::Mul, sync::*, vec};
 
-use ethers::{
-    abi::RawLog,
-    prelude::*,
-};
+use ethers::{abi::RawLog, prelude::*};
 use tokio::task::JoinSet;
 
 use self::types::{
@@ -11,11 +8,12 @@ use self::types::{
     UniswapV2PairContract,
 };
 
-use super::{Exchange, types::Swap};
+use super::Exchange;
 use crate::{
     env::types::{RuntimeClient, UniswapQueryContract},
+    handlers::types::swap::Swap,
     networks::Network,
-    types::market::Market,
+    types::{market::Market, TransactionLog},
 };
 
 mod types;
@@ -91,25 +89,27 @@ pub async fn get_markets(
     return exchange_markets;
 }
 
-pub fn parse_logs(logs: &[RawLog]) -> Vec<Swap> {
-    let decode_results: Result<Vec<uniswap_v2_pair::SwapFilter>, abi::Error> =
-        ethers::contract::decode_logs(logs);
+pub fn parse_balance_changes(logs: Vec<TransactionLog>) -> Vec<Swap> {
+    if logs.len() > 1 {
+        let raw_logs: Vec<RawLog> = logs.into_iter().map(|x| x.raw).collect();
+        let decode_results: Result<Vec<uniswap_v2_pair::SwapFilter>, abi::Error> =
+            ethers::contract::decode_logs(&raw_logs);
 
-    let mut swap_events: Vec<Swap> = vec![];
-    if decode_results.is_ok() {
-        for log in decode_results.unwrap(){
-            swap_events.push(Swap{
-                sender: log.sender,
-                to: log.to,
-                amount_0_in: log.amount_0_in,
-                amount_0_out: log.amount_0_out,
-                amount_1_in: log.amount_1_in,
-                amount_1_out: log.amount_0_out
-            });
-        };
+        let mut swap_events: Vec<Swap> = vec![];
+        if decode_results.is_ok() {
+            for log in decode_results.unwrap() {
+                swap_events.push(Swap {
+                    sender: log.sender,
+                    to: log.to,
+                    amount_0_in: log.amount_0_in,
+                    amount_0_out: log.amount_0_out,
+                    amount_1_in: log.amount_1_in,
+                    amount_1_out: log.amount_1_out,
+                });
+            }
 
-
-        return swap_events.to_vec();
+            return swap_events.to_vec();
+        }
     }
 
     return vec![];

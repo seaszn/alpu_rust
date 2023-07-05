@@ -8,9 +8,9 @@ use tokio::task::JoinSet;
 use websocket_lite::{ClientBuilder, Message, Opcode};
 
 use crate::env;
-use crate::exchanges::parse_exchange_logs;
-use crate::exchanges::types::Swap;
+use crate::exchanges::parse_balance_changes;
 use crate::handlers::tracer;
+use crate::handlers::types::swap::Swap;
 use crate::types::{Transaction, TransactionLog};
 
 use self::types::RelayMessage;
@@ -66,10 +66,10 @@ async fn handle_text_message(incomming: Message, sender: &Sender<Vec<Swap>>) {
             }
 
             if combined_logs.len() > 0 {
-                let res: Vec<Swap> = parse_exchange_logs(combined_logs);
+                let balance_changes: Vec<Swap> = parse_balance_changes(combined_logs);
 
                 println!("{:?}", timestamp.elapsed());
-                _ = sender.send(res).await;
+                _ = sender.send(balance_changes).await;
             }
         }
     }

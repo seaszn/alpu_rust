@@ -15,13 +15,3 @@ pub struct Exchange {
     pub base_fee: i32,
     pub stable_fee: Option<i32>,
 }
-
-#[derive(Debug, Clone, Copy)]
-pub struct Swap {
-    pub sender: H160,
-    pub amount_0_in: U256,
-    pub amount_1_in: U256,
-    pub amount_0_out: U256,
-    pub amount_1_out: U256,
-    pub to: H160,
-}

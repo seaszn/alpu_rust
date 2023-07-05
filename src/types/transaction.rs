@@ -31,6 +31,7 @@ impl Transaction {
     }
 }
 
+#[derive(Clone)]
 pub struct TransactionLog {
     pub address: H160,
     pub protocol: Protocol,

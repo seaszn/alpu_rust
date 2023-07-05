@@ -3,11 +3,12 @@ use std::{sync::Arc, vec};
 use crate::{
     env::types::{RuntimeClient, UniswapQueryContract},
     exchanges::types::Protocol,
+    handlers::types::swap::Swap,
     networks::Network,
     types::{market::Market, TransactionLog},
 };
 
-use self::types::{Exchange, Swap};
+use self::types::Exchange;
 
 mod stable_swap;
 pub mod types;
@@ -30,15 +31,36 @@ pub async fn get_exchange_markets(
     return vec![];
 }
 
-pub fn parse_exchange_logs(logs: Vec<TransactionLog>) -> Vec<Swap> {
+pub fn parse_balance_changes(logs: Vec<TransactionLog>) -> Vec<Swap> {
     let mut result: Vec<Swap> = vec![];
 
-    for log in logs{
-        if log.protocol == Protocol::UniswapV2 {
-            result.append(uniswap_v2::parse_logs(&[log.raw]).as_mut());
-        } else if log.protocol == Protocol::StableSwap {
-        }
+    // Uniswap V2
+    if logs
+        .clone()
+        .into_iter()
+        .any(|x| x.protocol == Protocol::UniswapV2)
+    {
+        result.append(&mut uniswap_v2::parse_balance_changes(
+            logs.clone()
+                .into_iter()
+                .filter(|x| x.protocol == Protocol::UniswapV2)
+                .collect(),
+        ));
     }
+
+    // // Stable swap
+    // if logs
+    //     .clone()
+    //     .into_iter()
+    //     .any(|x| x.protocol == Protocol::UniswapV2)
+    // {
+    //     result.append(&mut uniswap_v2::parse_balance_changes(
+    //         logs.clone()
+    //             .into_iter()
+    //             .filter(|x| x.protocol == Protocol::UniswapV2)
+    //             .collect(),
+    //     ));
+    // }
 
     return result;
 }

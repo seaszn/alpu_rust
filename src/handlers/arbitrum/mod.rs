@@ -1,6 +1,6 @@
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 
-use crate::exchanges::types::Swap;
+use super::types::swap::Swap;
 
 mod data_feed;
 

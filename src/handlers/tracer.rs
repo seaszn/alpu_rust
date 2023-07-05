@@ -11,7 +11,7 @@ use ethers::{
     },
 };
 
-use super::utils::{parse_address, parse_topic_buffer, parse_buffer};
+use super::utils::{parse_address, parse_buffer, parse_topic_buffer};
 
 extern crate lazy_static;
 
@@ -43,7 +43,6 @@ const JS_CONTENT: &str = "{
 
 lazy_static! {
     static ref TYPE: GethDebugTracerType = GethDebugTracerType::JsTracer(JS_CONTENT.to_string());
-    
     static ref OPTIONS: GethDebugTracingOptions = ethers::types::GethDebugTracingOptions {
         enable_memory: Some(true),
         enable_return_data: Some(true),
@@ -53,7 +52,6 @@ lazy_static! {
         timeout: None,
         disable_stack: Some(false)
     };
-
     static ref CALL_OPTIONS: GethDebugTracingCallOptions = GethDebugTracingCallOptions {
         tracing_options: OPTIONS.clone(),
         state_overrides: None
@@ -84,15 +82,16 @@ fn decode_trace(trace: GethTrace) -> Vec<TransactionLog> {
 
     'input_loop: for input_element in input_array {
         if input_element.is_object() {
-            let mut raw_log: RawLog = RawLog {
-                topics: vec![],
-                data: vec![],
-            };
-
-            let element_obj: &serde_json::Map<String, serde_json::Value> = input_element.as_object().unwrap();
+            let element_obj: &serde_json::Map<String, serde_json::Value> =
+                input_element.as_object().unwrap();
             let address: &ethers::types::H160 = &parse_address(&element_obj["address"]);
 
             if let Some(market) = types::market::from_address(address) {
+                let mut raw_log: RawLog = RawLog {
+                    topics: vec![],
+                    data: vec![],
+                };
+
                 for (key, value) in input_element.as_object().unwrap() {
                     if key == "data" {
                         if value.is_object() {
