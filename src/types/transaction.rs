@@ -1,5 +1,7 @@
 use ethers::abi::RawLog;
-use ethers::types::{Address, Bytes, NameOrAddress, U256, U64};
+use ethers::types::{Address, Bytes, NameOrAddress, U256, U64, H160};
+
+use crate::exchanges::types::Protocol;
 
 #[derive(Debug)]
 pub struct Transaction {
@@ -15,6 +17,7 @@ pub struct Transaction {
 }
 
 pub struct TransactionLog {
-    pub address: String,
-    pub info: RawLog,
+    pub address: H160,
+    pub protocol: Protocol,
+    pub raw: RawLog,
 }

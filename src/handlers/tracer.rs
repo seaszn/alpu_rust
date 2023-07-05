@@ -1,6 +1,9 @@
-use crate::env;
+use crate::{
+    env,
+    types::{self, TransactionLog},
+};
 use ethers::{
-    abi::{encode, AbiEncode, RawLog},
+    abi::{AbiEncode, RawLog},
     prelude::*,
     providers::Middleware,
     types::{
@@ -54,7 +57,7 @@ lazy_static! {
     };
 }
 
-pub async fn trace_transaction_logs(tx: TransactionRequest) -> Option<Vec<RawLog>> {
+pub async fn trace_transaction_logs(tx: TransactionRequest) -> Option<Vec<TransactionLog>> {
     let client = env::RUNTIME_CACHE.client.clone();
     let response = client
         .debug_trace_call(
@@ -67,16 +70,14 @@ pub async fn trace_transaction_logs(tx: TransactionRequest) -> Option<Vec<RawLog
     if response.is_ok() {
         return Some(decode_transaction_logs(response.unwrap()));
     } else {
-        println!("{}", response.unwrap_err());
         return None;
     }
 }
 
-fn decode_transaction_logs(trace: GethTrace) -> Vec<RawLog> {
+fn decode_transaction_logs(trace: GethTrace) -> Vec<TransactionLog> {
     let GethTrace::Unknown(value) = trace else {return vec![]};
     let input: &Vec<serde_json::Value> = value.as_array().unwrap();
-    let mut logs: Vec<RawLog> = vec![];
-    let markets = env::RUNTIME_CACHE.market_addressess.clone();
+    let mut logs: Vec<TransactionLog> = vec![];
 
     'input_loop: for obj in input {
         if obj.is_object() {
@@ -86,30 +87,37 @@ fn decode_transaction_logs(trace: GethTrace) -> Vec<RawLog> {
             };
 
             let object = obj.as_object().unwrap();
-            if markets.contains(&parse_address_buffer(&object["address"])) {
+            let address = &parse_address(&object["address"]);
+
+            if let Some(market) = types::market::from_address(address) {
                 for (key, value) in obj.as_object().unwrap() {
                     if key == "data" {
-                        result.data = sort_buffer(value).to_vec();
+                        if value.is_object() {
+                            result.data = sort_buffer(value);
+                        } else {
+                            continue 'input_loop;
+                        }
                     } else if key != "address" {
                         let topic_data = parse_topic_buffer(value);
 
-                        if topic_data.is_some() {
+                        if topic_data.is_some() && value.is_string() {
                             result.topics.push(topic_data.unwrap());
-                        }
-                        else {
-                            println!("{:?}", "skipped");
+                        } else {
                             continue 'input_loop;
                         }
                     }
                 }
 
                 if result.data.len() > 0 {
-                    logs.push(result);
+                    logs.push(TransactionLog {
+                        address: *address,
+                        protocol: market.protocol,
+                        raw: result,
+                    });
                 }
             }
         }
     }
-
     return logs;
 }
 
@@ -129,8 +137,8 @@ fn sort_buffer(value: &Value) -> Vec<u8> {
     return buffer;
 }
 
-fn parse_address_buffer(value: &Value) -> [u8; 20] {
-    return sort_buffer(&value)[0..20].try_into().unwrap();
+fn parse_address(value: &Value) -> H160 {
+    return H160::from_slice(&sort_buffer(value));
 }
 
 fn parse_topic_buffer(value: &Value) -> Option<H256> {

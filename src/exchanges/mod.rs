@@ -1,30 +1,17 @@
-use std::sync::Arc;
+use std::{sync::Arc, vec};
 
 use crate::{
     env::types::{RuntimeClient, UniswapQueryContract},
+    exchanges::types::Protocol,
     networks::Network,
-    types::*,
+    types::{market::Market, TransactionLog},
 };
-use ethers::prelude::*;
-use serde::Deserialize;
+
+use self::types::{Exchange, Swap};
 
 mod stable_swap;
+pub mod types;
 mod uniswap_v2;
-
-#[derive(Debug, Deserialize, PartialEq)]
-pub enum Protocol {
-    UniswapV2,
-    StableSwap,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct Exchange {
-    pub factory_address: Address,
-    pub min_liquidity: i32,
-    pub protocol: Protocol,
-    pub base_fee: i32,
-    pub stable_fee: Option<i32>,
-}
 
 pub async fn get_exchange_markets(
     exchange: &Exchange,
@@ -43,11 +30,15 @@ pub async fn get_exchange_markets(
     return vec![];
 }
 
-pub async fn parse_logs(exchange: &Exchange, logs: TransactionLog) {
+pub fn parse_exchange_logs(logs: Vec<TransactionLog>) -> Vec<Swap> {
+    let mut result: Vec<Swap> = vec![];
 
-    if exchange.protocol == Protocol::UniswapV2 {
-        return uniswap_v2::parse_logs(logs).await;
-    } else if exchange.protocol == Protocol::StableSwap {
-        // return stable_swap::get_markets(exchange);
+    for log in logs{
+        if log.protocol == Protocol::UniswapV2 {
+            result.append(uniswap_v2::parse_logs(&[log.raw]).as_mut());
+        } else if log.protocol == Protocol::StableSwap {
+        }
     }
+
+    return result;
 }

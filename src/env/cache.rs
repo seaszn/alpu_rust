@@ -11,7 +11,7 @@ use super::{
     config::RuntimeConfig,
     types::{BundleExecutorContract, RuntimeClient, UniswapQueryContract},
 };
-use crate::{exchanges::get_exchange_markets, networks::Network, types::Market};
+use crate::{exchanges::get_exchange_markets, networks::Network, types::market::Market};
 
 abigen!(UniswapQuery, "src/contracts/abi/UniswapQuery.json");
 abigen!(BundleExecutor, "src/contracts/abi/BundleExecutor.json");

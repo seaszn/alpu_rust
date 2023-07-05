@@ -2,7 +2,7 @@ mod arbitrum;
 use crate::utils;
 use std::sync::Arc;
 
-use crate::{exchanges::Exchange, types::Token};
+use crate::{exchanges::types::Exchange, types::Token};
 use ethers::prelude::*;
 
 pub use self::arbitrum::CHAIN_ID as arbitrum;
@@ -25,7 +25,7 @@ pub fn init(chain_id: &u32) -> Network {
     panic!("chain_id UNKOWN");
 }
 
-fn load_exchanges_from_file(network_name: &str) -> Vec<crate::exchanges::Exchange> {
+fn load_exchanges_from_file(network_name: &str) -> Vec<Exchange> {
     return utils::json::deserialize_exchange_file(format!(
         "src/networks/{}/_exchanges.json",
         network_name

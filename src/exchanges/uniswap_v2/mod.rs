@@ -1,17 +1,21 @@
 use std::{ops::Mul, sync::*, vec};
 
-use ethers::prelude::*;
+use ethers::{
+    abi::RawLog,
+    prelude::*,
+};
 use tokio::task::JoinSet;
 
 use self::types::{
-    UniswapV2Factory, UniswapV2FactoryContract, UniswapV2Pair, UniswapV2PairContract,
+    uniswap_v2_pair, UniswapV2Factory, UniswapV2FactoryContract, UniswapV2Pair,
+    UniswapV2PairContract,
 };
 
-use super::Exchange;
+use super::{Exchange, types::Swap};
 use crate::{
     env::types::{RuntimeClient, UniswapQueryContract},
     networks::Network,
-    types::{Market, TransactionLog},
+    types::market::Market,
 };
 
 mod types;
@@ -36,6 +40,7 @@ pub async fn get_markets(
     let market_count: U256 = factory_contract.all_pairs_length().await.unwrap();
     let batch_count: U256 = market_count / batch_size + 1;
     let exchange_fee: i32 = exchange.base_fee;
+    let exchange_protocol = exchange.protocol;
 
     let mut set: JoinSet<Vec<Market>> = JoinSet::new();
 
@@ -64,6 +69,7 @@ pub async fn get_markets(
                             tokens: [token0.unwrap().clone(), token1.unwrap().clone()],
                             fee: exchange_fee,
                             stable: false,
+                            protocol: exchange_protocol,
                         });
                     }
                 }
@@ -85,6 +91,26 @@ pub async fn get_markets(
     return exchange_markets;
 }
 
-pub async fn parse_logs(_logs: TransactionLog) {
-    // let s: Result<Vec<EthLogDecode>, abi::Error> = ethers::contract::decode_logs(logs);
+pub fn parse_logs(logs: &[RawLog]) -> Vec<Swap> {
+    let decode_results: Result<Vec<uniswap_v2_pair::SwapFilter>, abi::Error> =
+        ethers::contract::decode_logs(logs);
+
+    let mut swap_events: Vec<Swap> = vec![];
+    if decode_results.is_ok() {
+        for log in decode_results.unwrap(){
+            swap_events.push(Swap{
+                sender: log.sender,
+                to: log.to,
+                amount_0_in: log.amount_0_in,
+                amount_0_out: log.amount_0_out,
+                amount_1_in: log.amount_1_in,
+                amount_1_out: log.amount_0_out
+            });
+        };
+
+
+        return swap_events.to_vec();
+    }
+
+    return vec![];
 }
