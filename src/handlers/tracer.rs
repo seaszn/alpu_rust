@@ -1,17 +1,17 @@
 use crate::{
-    env,
+    env::{self, types::RuntimeClient},
     types::{self, TransactionLog},
 };
 use ethers::{
-    abi::{AbiEncode, RawLog},
-    prelude::*,
+    abi::RawLog,
     providers::Middleware,
     types::{
         BlockId, BlockNumber, GethDebugTracerType, GethDebugTracingCallOptions,
         GethDebugTracingOptions, GethTrace, TransactionRequest,
     },
 };
-use serde_json::Value;
+
+use super::utils::{parse_address, parse_topic_buffer, parse_buffer};
 
 extern crate lazy_static;
 
@@ -58,7 +58,7 @@ lazy_static! {
 }
 
 pub async fn trace_transaction_logs(tx: TransactionRequest) -> Option<Vec<TransactionLog>> {
-    let client = env::RUNTIME_CACHE.client.clone();
+    let client: RuntimeClient = env::RUNTIME_CACHE.client.clone();
     let response = client
         .debug_trace_call(
             tx,
@@ -76,78 +76,47 @@ pub async fn trace_transaction_logs(tx: TransactionRequest) -> Option<Vec<Transa
 
 fn decode_transaction_logs(trace: GethTrace) -> Vec<TransactionLog> {
     let GethTrace::Unknown(value) = trace else {return vec![]};
-    let input: &Vec<serde_json::Value> = value.as_array().unwrap();
-    let mut logs: Vec<TransactionLog> = vec![];
+    let input_array: &Vec<serde_json::Value> = value.as_array().unwrap();
+    let mut transaction_logs: Vec<TransactionLog> = vec![];
 
-    'input_loop: for obj in input {
-        if obj.is_object() {
-            let mut result: RawLog = RawLog {
+    'input_loop: for input_element in input_array {
+        if input_element.is_object() {
+            let mut raw_log: RawLog = RawLog {
                 topics: vec![],
                 data: vec![],
             };
 
-            let object = obj.as_object().unwrap();
-            let address = &parse_address(&object["address"]);
+            let element_obj: &serde_json::Map<String, serde_json::Value> = input_element.as_object().unwrap();
+            let address: &ethers::types::H160 = &parse_address(&element_obj["address"]);
 
             if let Some(market) = types::market::from_address(address) {
-                for (key, value) in obj.as_object().unwrap() {
+                for (key, value) in input_element.as_object().unwrap() {
                     if key == "data" {
                         if value.is_object() {
-                            result.data = sort_buffer(value);
+                            raw_log.data = parse_buffer(value);
                         } else {
                             continue 'input_loop;
                         }
                     } else if key != "address" {
-                        let topic_data = parse_topic_buffer(value);
+                        let topic_data: Option<ethers::types::H256> = parse_topic_buffer(value);
 
                         if topic_data.is_some() && value.is_string() {
-                            result.topics.push(topic_data.unwrap());
+                            raw_log.topics.push(topic_data.unwrap());
                         } else {
                             continue 'input_loop;
                         }
                     }
                 }
 
-                if result.data.len() > 0 {
-                    logs.push(TransactionLog {
+                if raw_log.data.len() > 0 {
+                    transaction_logs.push(TransactionLog {
                         address: *address,
                         protocol: market.protocol,
-                        raw: result,
+                        raw: raw_log,
                     });
                 }
             }
         }
     }
-    return logs;
-}
-
-fn sort_buffer(value: &Value) -> Vec<u8> {
-    let mut buffer: Vec<u8> = vec![];
-    for (key, value) in value.as_object().unwrap() {
-        let index: usize = key.parse().unwrap();
-        let bytecode: u8 = value.as_u64().unwrap().to_string().parse().unwrap();
-
-        if index >= buffer.len() {
-            buffer.push(bytecode);
-        } else {
-            buffer.insert(index, bytecode)
-        }
-    }
-
-    return buffer;
-}
-
-fn parse_address(value: &Value) -> H160 {
-    return H160::from_slice(&sort_buffer(value));
-}
-
-fn parse_topic_buffer(value: &Value) -> Option<H256> {
-    let s: Result<U256, abi::ethereum_types::FromDecStrErr> =
-        U256::from_dec_str(value.as_str().unwrap());
-
-    if s.is_ok() {
-        return Some(H256::from_slice(s.unwrap().encode().as_slice()));
-    }
-
-    return None;
+    return transaction_logs;
 }
