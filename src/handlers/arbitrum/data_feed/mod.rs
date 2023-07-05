@@ -48,7 +48,7 @@ async fn handle_text_message(incomming: Message, sender: &Sender<Vec<Swap>>) {
             for tx in transactions {
                 join_set.spawn(async move {
                     let response: Option<Vec<TransactionLog>> =
-                        tracer::trace_transaction_logs(tx.to_request()).await;
+                        tracer::trace_transaction(tx.to_request()).await;
 
                     if response.is_some() {
                         return Some(response.unwrap());

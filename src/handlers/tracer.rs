@@ -15,33 +15,35 @@ use super::utils::{parse_address, parse_topic_buffer, parse_buffer};
 
 extern crate lazy_static;
 
-const JS_CONTENT: &str = "{\n
-    data: [],\n
-    fault: function (log) {\n
-    },\n 
+const JS_CONTENT: &str = "{
+    data: [],
+    fault: function (log) {
+    },
     
-    step: function (log) {\n
-       var topicCount = (log.op.toString().match(/LOG(\\d)/) || [])[1];\n
-        if (topicCount) {\n
-            const res = {\n
-                address: log.contract.getAddress(),\n
-                data: log.memory.slice(parseInt(log.stack.peek(0)), parseInt(log.stack.peek(0)) + parseInt(log.stack.peek(1))),\n
-            };\n
+    step: function (log) {
+       var topicCount = (log.op.toString().match(/LOG(\\d)/) || [])[1];
+        if (topicCount) {
+            const res = {
+                address: log.contract.getAddress(),
+                data: log.memory.slice(parseInt(log.stack.peek(0)), parseInt(log.stack.peek(0)) + parseInt(log.stack.peek(1))),
+            };
             
-            for (var i = 0; i < topicCount; i++){\n
-                res[i.toString()] = log.stack.peek(i + 2);\n
-            }\n
+            for (var i = 0; i < topicCount; i++){
+                res[i.toString()] = log.stack.peek(i + 2);
+            }
 
-            this.data.push(res);\n
-        }\n
-    },\n
-    result: function () {\n
-        return this.data;\n
-    }\n
+            this.data.push(res);
+        }
+    },
+
+    result: function () {
+        return this.data;
+    }
 }";
 
 lazy_static! {
     static ref TYPE: GethDebugTracerType = GethDebugTracerType::JsTracer(JS_CONTENT.to_string());
+    
     static ref OPTIONS: GethDebugTracingOptions = ethers::types::GethDebugTracingOptions {
         enable_memory: Some(true),
         enable_return_data: Some(true),
@@ -51,13 +53,14 @@ lazy_static! {
         timeout: None,
         disable_stack: Some(false)
     };
+
     static ref CALL_OPTIONS: GethDebugTracingCallOptions = GethDebugTracingCallOptions {
         tracing_options: OPTIONS.clone(),
         state_overrides: None
     };
 }
 
-pub async fn trace_transaction_logs(tx: TransactionRequest) -> Option<Vec<TransactionLog>> {
+pub async fn trace_transaction(tx: TransactionRequest) -> Option<Vec<TransactionLog>> {
     let client: RuntimeClient = env::RUNTIME_CACHE.client.clone();
     let response = client
         .debug_trace_call(
@@ -68,13 +71,13 @@ pub async fn trace_transaction_logs(tx: TransactionRequest) -> Option<Vec<Transa
         .await;
 
     if response.is_ok() {
-        return Some(decode_transaction_logs(response.unwrap()));
+        return Some(decode_trace(response.unwrap()));
     } else {
         return None;
     }
 }
 
-fn decode_transaction_logs(trace: GethTrace) -> Vec<TransactionLog> {
+fn decode_trace(trace: GethTrace) -> Vec<TransactionLog> {
     let GethTrace::Unknown(value) = trace else {return vec![]};
     let input_array: &Vec<serde_json::Value> = value.as_array().unwrap();
     let mut transaction_logs: Vec<TransactionLog> = vec![];
