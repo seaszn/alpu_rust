@@ -1,14 +1,11 @@
 use base64::engine::general_purpose;
 use ethers::types::Address;
-use ethers::utils::rlp::DecoderError;
 use serde;
 use serde::Deserialize;
 extern crate base64;
 use base64::Engine;
 
 use crate::types::Transaction;
-
-use super::decoder::decode_data;
 
 #[derive(Debug, Deserialize, PartialEq, Eq)]
 pub enum L1MessageType {
@@ -94,11 +91,8 @@ impl RelayMessage {
                     let (message_kind, message_data) = data.split_first().unwrap();
 
                     if i8::from_be_bytes([*message_kind]) == L2MessageType::SignedTx as i8 {
-                        let transaction: Result<Transaction, DecoderError> =
-                            decode_data(message_data);
-
-                        if transaction.is_ok() {
-                            result.push(transaction.unwrap());
+                        if let Some(transaction) = Transaction::from_data(message_data) {
+                            result.push(transaction);
                         }
                     }
                 }

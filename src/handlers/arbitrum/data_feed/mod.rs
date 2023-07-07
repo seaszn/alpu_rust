@@ -1,21 +1,14 @@
-use std::time::Instant;
-use std::vec;
-
 use futures::{SinkExt, StreamExt};
 
 use tokio::sync::mpsc::Sender;
-use tokio::task::JoinSet;
 use websocket_lite::{ClientBuilder, Message, Opcode};
 
-use crate::env;
-use crate::exchanges::parse_balance_changes;
-use crate::handlers::tracer;
 use crate::handlers::types::swap::BalanceChange;
-use crate::types::{Transaction, TransactionLog};
+use crate::types::Transaction;
+use crate::{env, log_tracer};
 
 use self::types::RelayMessage;
 
-mod decoder;
 mod types;
 
 pub async fn init(sender: &Sender<Vec<BalanceChange>>) -> websocket_lite::Result<()> {
@@ -36,40 +29,61 @@ pub async fn init(sender: &Sender<Vec<BalanceChange>>) -> websocket_lite::Result
     Ok(())
 }
 
-async fn handle_text_message(incomming: Message, sender: &Sender<Vec<BalanceChange>>) {
-    let pase_result = RelayMessage::from_json(incomming.as_text().unwrap());
-    if pase_result.is_some() {
-        let transactions: Vec<Transaction> = pase_result.unwrap().decode();
+async fn handle_text_message(incomming: Message, _sender: &Sender<Vec<BalanceChange>>) {
+    if let Some(message_text) = incomming.as_text() {
+        if let Some(relay_message) = RelayMessage::from_json(message_text) {
+            let transactions: Vec<Transaction> = relay_message.decode();
 
-        if transactions.len() > 0 {
-            let timestamp = Instant::now();
-            let mut join_set: JoinSet<Option<Vec<TransactionLog>>> = JoinSet::new();
+            if transactions.len() > 0 {
+                // let mut join_set: JoinSet<Option<Vec<TransactionLog>>> = JoinSet::new();
 
-            for tx in transactions {
-                join_set.spawn(async move {
-                    let response: Option<Vec<TransactionLog>> =
-                        tracer::trace_transaction(tx.to_request()).await;
+                for tx in transactions {
+                    let transaction_request: ethers::types::TransactionRequest = tx.to_request();
 
-                    if response.is_some() {
-                        return Some(response.unwrap());
-                    } else {
-                        return None;
+                    println!(" ---- {:#?}", tx.hash);
+                    if let Some(_transaction_logs) =
+                        log_tracer::trace_transaction(transaction_request.clone()).await
+                    {
+                        // process::exit(1);
                     }
-                });
-            }
 
-            let mut combined_logs: Vec<TransactionLog> = vec![];
-            while let Some(Ok(result)) = join_set.join_next().await {
-                if result.is_some() {
-                    combined_logs.append(result.unwrap().as_mut())
+                    // join_set.spawn(async move {s
+                    //         if response.len() > 0 {
+                    //             // println!("tx: {}", tx.hash);
+                    //             // println!("address: {:#?}", response[0].address);
+                    //             // println!(
+                    //                 // "data: {:#?}",
+                    //                 // H512::from_slice(response[0].raw.data.as_slice())
+                    //             // );
+                    //             // println!(
+                    //                 // "data raw: {:#?}",
+                    //                 // response[0].raw.data.as_slice()
+                    //             // );
+
+                    //             process::exit(1);
+                    //         }
+
+                    //         return Some(response);
+                    //     } else {
+                    //         return None;
+                    //     }
+                    // });
                 }
-            }
 
-            if combined_logs.len() > 0 {
-                let balance_changes: Vec<BalanceChange> = parse_balance_changes(combined_logs);
+                // // Get all the transaction logs of the
+                // let mut combined_logs: Vec<TransactionLog> = vec![];
+                // while let Some(Ok(result)) = join_set.join_next().await {
+                //     if result.is_some() {
+                //         combined_logs.append(result.unwrap().as_mut())
+                //     }
+                // }
 
-                println!("{:?}", timestamp.elapsed());
-                _ = sender.send(balance_changes).await;
+                // if combined_logs.len() > 0 {
+                //     let balance_changes: Vec<BalanceChange> = parse_balance_changes(combined_logs);
+
+                //     println!("{:?}", timestamp.elapsed());
+                //     _ = sender.send(balance_changes).await;
+                // }
             }
         }
     }

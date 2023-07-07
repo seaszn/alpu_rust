@@ -1,9 +1,20 @@
 use ethers::abi::RawLog;
-use ethers::types::{Address, Bytes, NameOrAddress, U256, U64, H160, TransactionRequest};
+use ethers::types::transaction::eip1559::*;
+use ethers::types::{Address, Bytes, NameOrAddress, TransactionRequest, H160, U256, U64};
+use ethers::utils::keccak256;
+use ethers::utils::rlp::*;
 
+use crate::env;
 use crate::exchanges::types::Protocol;
 
-#[derive(Debug)]
+lazy_static! {
+    static ref TOP_WALLET_ADDRESS: Address = "0xf977814e90da44bfa03b6295a0616a897441acec"
+        .to_string()
+        .parse()
+        .unwrap();
+}
+
+#[derive(Debug, Clone)]
 pub struct Transaction {
     pub hash: String,
     pub to: Option<NameOrAddress>,
@@ -17,7 +28,7 @@ pub struct Transaction {
 }
 
 impl Transaction {
-    pub fn to_request(&self) -> TransactionRequest{
+    pub fn to_request(&self) -> TransactionRequest {
         return TransactionRequest {
             from: self.from,
             to: self.to.clone(),
@@ -28,6 +39,40 @@ impl Transaction {
             nonce: self.nonce,
             chain_id: self.chain_id,
         };
+    }
+
+    pub fn from_data(data: &[u8]) -> Option<Transaction> {
+        let tx_hash = hex::encode(keccak256(data));
+
+        if let Ok(legacy_transaction) = decode::<TransactionRequest>(data) {
+            return Some(Transaction {
+                hash: tx_hash,
+                to: legacy_transaction.to,
+                value: legacy_transaction.value,
+                data: legacy_transaction.data,
+                from: legacy_transaction.from,
+                gas: legacy_transaction.gas,
+                gas_price: legacy_transaction.gas_price,
+                nonce: None,
+                chain_id: Some(U64::from(env::RUNTIME_NETWORK.chain_id)),
+            });
+        } else if let Ok(eip1559_transaction) =
+            decode::<Eip1559TransactionRequest>(data.split_first().unwrap().1)
+        {
+            return Some(Transaction {
+                hash: tx_hash,
+                to: eip1559_transaction.to,
+                value: eip1559_transaction.value,
+                data: eip1559_transaction.data,
+                from: eip1559_transaction.from,
+                gas: eip1559_transaction.gas,
+                gas_price: eip1559_transaction.max_fee_per_gas,
+                nonce: None,
+                chain_id: Some(U64::from(env::RUNTIME_NETWORK.chain_id)),
+            });
+        }
+
+        return None;
     }
 }
 

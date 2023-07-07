@@ -15,12 +15,14 @@ pub struct Market {
     pub protocol: Protocol,
 }
 
-pub fn from_address(address: &H160) -> Option<Arc<Market>> {
-    for market in &env::RUNTIME_CACHE.markets {
-        if market.contract_address.0 == address.0 {
-            return Some(market.clone());
+impl Market {
+    pub fn from_address(address: &H160) -> Option<Arc<Market>> {
+        for market in &env::RUNTIME_CACHE.markets {
+            if market.contract_address.0 == address.0 {
+                return Some(market.clone());
+            }
         }
+        
+        return None;
     }
-
-    return None;
 }
