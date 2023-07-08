@@ -5,7 +5,7 @@ use serde::Deserialize;
 
 use crate::env;
 
-#[derive(Debug, Deserialize, Clone, Copy)]
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
 pub struct Token {
     pub contract_address: H160,
     pub flash_loan_enabled: bool,

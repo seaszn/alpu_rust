@@ -1,14 +1,14 @@
-use std::{ process, sync::Arc, time::Instant, u8};
+use std::{sync::Arc, time::Instant, u8, process};
 
 use crate::{
     env::{self, types::RuntimeClient},
-    types::{market::Market, Token, TransactionLog},
+    types::{market::Market, HexNum, Token, TransactionLog},
 };
 use ethers::{
     abi::Address,
     providers::Middleware,
     types::{
-        BlockId, BlockNumber, CallFrame, GethDebugBuiltInTracerType, GethDebugTracerType,
+        BlockId, BlockNumber, GethDebugBuiltInTracerType, GethDebugTracerType,
         GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace, GethTraceFrame,
         TransactionRequest, U256,
     },
@@ -16,7 +16,7 @@ use ethers::{
 
 use self::{
     types::{TraceFrame, TransferCall},
-    utils::{format_data, trim_bytes_to},
+    utils::{flatten_call_frames, format_data, trim_bytes_to},
 };
 
 mod types;
@@ -58,7 +58,6 @@ pub async fn trace_transaction(tx: TransactionRequest) -> Option<Vec<Transaction
         if let GethTrace::Known(trace_frame) = response {
             if let GethTraceFrame::CallTracer(top_call_frame) = trace_frame {
                 let trace_frames: Vec<TraceFrame> = flatten_call_frames(&top_call_frame);
-                let mut market_frames: Vec<(Arc<Market>, U256)> = vec![];
 
                 for frame in trace_frames {
                     if let Some(_token) = Token::from_address(&frame.to) {
@@ -66,43 +65,35 @@ pub async fn trace_transaction(tx: TransactionRequest) -> Option<Vec<Transaction
 
                         if transfer_calls.len() > 0 {
                             for tranfer in transfer_calls {
+                                let mut affected_market: Option<Arc<Market>> = None;
+                                let mut value: Option<HexNum> = None;
+
+                                // balance coming in
                                 if let Some(market) = Market::from_address(&tranfer.recipient) {
-                                    // balance incomming into market
-                                    market_frames.push((market, tranfer.value));
-                                } else if let Some(market) = Market::from_address(&tranfer.sender) {
-                                    market_frames.push((market, tranfer.value));
+                                    affected_market = Some(market);
+                                    value = Some(HexNum::from(tranfer.value));
+                                }
+
+                                // balanche going out
+                                if let Some(market) = Market::from_address(&tranfer.sender) {
+                                    affected_market = Some(market);
+                                    value = Some(HexNum::from_negative(tranfer.value));
+                                }
+
+                                // process balance changes
+                                if affected_market != None && value != None {
+                                    println!("{:#?}", inst.elapsed());
+                                    process::exit(0);
                                 }
                             }
-                            // println!("{:#?}", transfer_calls);
-                            // process::exit(1);
                         }
                     }
-                }
-
-                if market_frames.len() > 0 {
-                    println!("{:#?}", market_frames);
-                    println!("{:#?}", inst.elapsed());
-                    process::exit(0);
                 }
             }
         }
     }
 
     return None;
-}
-
-fn flatten_call_frames(top_call_frame: &CallFrame) -> Vec<TraceFrame> {
-    let mut result: Vec<TraceFrame> = vec![];
-
-    if let Some(internal_calls) = &top_call_frame.calls {
-        for call in internal_calls {
-            result.append(&mut flatten_call_frames(call));
-        }
-    }
-
-    result.push(TraceFrame::from_call_frame(top_call_frame.clone()));
-
-    return result;
 }
 
 fn read_transfer_calls(frame: TraceFrame) -> Vec<TransferCall> {

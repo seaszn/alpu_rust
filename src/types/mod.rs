@@ -2,6 +2,9 @@ mod token;
 pub mod market;
 mod transaction;
 
+mod hexnum;
+
+pub use self::hexnum::HexNum as HexNum;
 pub use self::transaction::TransactionLog as TransactionLog;
 pub use self::transaction::Transaction as Transaction;
 pub use self::token::Token as Token;

@@ -2,10 +2,10 @@
 extern crate lazy_static;
 extern crate base64;
 
-pub mod log_tracer;
 pub mod env;
 pub mod exchanges;
 mod handlers;
+pub mod log_tracer;
 pub mod networks;
 pub mod types;
 pub mod utils;

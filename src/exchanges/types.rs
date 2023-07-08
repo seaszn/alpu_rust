@@ -1,7 +1,7 @@
 use ethers::prelude::*;
 use serde::Deserialize;
 
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
 pub enum Protocol {
     UniswapV2,
     StableSwap,

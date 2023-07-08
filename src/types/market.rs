@@ -6,7 +6,7 @@ use crate::{env, exchanges::types::Protocol};
 
 use super::Token;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Market {
     pub contract_address: Address,
     pub tokens: [Arc<Token>; 2],

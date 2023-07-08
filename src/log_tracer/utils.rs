@@ -1,4 +1,6 @@
-use ethers::types::Bytes;
+use ethers::types::{Bytes, CallFrame};
+
+use super::types::TraceFrame;
 
 pub fn format_data(data: &[u8]) -> Vec<Bytes> {
     let data_chunks: Vec<&[u8]> = data.chunks(32).collect();
@@ -15,19 +17,16 @@ pub fn trim_bytes_to(bytes: Bytes, length: usize) -> Vec<u8> {
     return bytes.split_at(bytes.len() - length).1.to_vec();
 }
 
-// fn remove_zero_padding(data: &[u8]) -> Vec<u8> {
-//     let mut result: Vec<u8> = vec![];
-//     let mut triggered = false;
+pub fn flatten_call_frames(top_call_frame: &CallFrame) -> Vec<TraceFrame> {
+    let mut result: Vec<TraceFrame> = vec![];
 
-//     for byte in data {
-//         if byte != &0 {
-//             triggered = true
-//         }
+    if let Some(internal_calls) = &top_call_frame.calls {
+        for call in internal_calls {
+            result.append(&mut flatten_call_frames(call));
+        }
+    }
 
-//         if triggered {
-//             result.push(*byte);
-//         }
-//     }
+    result.push(TraceFrame::from_call_frame(top_call_frame.clone()));
 
-//     return result;
-// }
+    return result;
+}
