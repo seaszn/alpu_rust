@@ -1,4 +1,4 @@
-use std::{ops::Mul, sync::*, vec};
+use std::{ops::Mul, sync::*};
 
 use ethers::{abi::RawLog, prelude::*};
 use tokio::task::JoinSet;
@@ -94,24 +94,23 @@ pub fn parse_balance_changes(logs: &Vec<TransactionLog>) -> Vec<BalanceChange> {
         let raw_logs: Vec<RawLog> = logs.clone().into_iter().map(|x| x.raw).collect();
         let mut swap_events: Vec<BalanceChange> = vec![];
 
-        for i in 0..raw_logs.len(){
-            let log = raw_logs[i].clone();
-            let decode_result = ethers::contract::decode_logs::<uniswap_v2_pair::SwapFilter>(&[log]);
-
-            if decode_result.is_ok() {
-                let instance: &uniswap_v2_pair::SwapFilter = &decode_result.unwrap()[0];
-
-                swap_events.push(BalanceChange {
-                    address: logs[i].address,
-                    amount_0_in: instance.amount_0_in,
-                    amount_1_in: instance.amount_1_in,
-                    amount_0_out: instance.amount_0_out,
-                    amount_1_out: instance.amount_1_out,
-                });
+        for i in 0..raw_logs.len() {
+            if let Ok(filters) =
+                ethers::contract::decode_logs::<uniswap_v2_pair::SwapFilter>(&[raw_logs[i].clone()])
+            {
+                for swap in filters {
+                    swap_events.push(BalanceChange {
+                        address: logs[i].address,
+                        amount_0_in: swap.amount_0_in,
+                        amount_1_in: swap.amount_1_in,
+                        amount_0_out: swap.amount_0_out,
+                        amount_1_out: swap.amount_1_out,
+                    });
+                }
             }
         }
-        
-        return swap_events.to_vec();
+
+        return swap_events;
     }
 
     return vec![];

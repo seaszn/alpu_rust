@@ -15,17 +15,16 @@ pub fn parse_topic_buffer(value: &Value) -> Option<H256> {
 }
 
 pub fn parse_address(value: Value) -> H160 {
-    let bytes = Bytes::from(parse_number_array(value));
+    let bytes = Bytes::from(parse_buffer(value));
     return H160::from_slice(&bytes);
 }
 
-pub fn parse_number_array(data: Value) -> Vec<u8> {
+pub fn parse_buffer(data: Value) -> Vec<u8> {
     let mut result: Vec<u8> = vec![];
 
-    if let Some(arr) = data.as_array() {
-        for a in arr {
-            let value: u8 = a.to_string().parse().unwrap();
-            result.push(value);
+    if let Some(buffer_map) = data.as_object() {
+        for i in 0..buffer_map.len() {
+            result.push(buffer_map[&i.to_string()].to_string().parse().unwrap());
         }
     }
 

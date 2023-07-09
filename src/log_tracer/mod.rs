@@ -1,21 +1,19 @@
-use std::{ops::Sub, process, time::Instant};
+use std::ops::Sub;
 
 use crate::{
     env::{self, types::RuntimeClient},
     types::{market::Market, TransactionLog},
 };
 use ethers::{
+    abi::RawLog,
     providers::Middleware,
     types::{
-        BlockId, BlockNumber, Bytes, GethDebugTracerType, GethDebugTracingCallOptions,
-        GethDebugTracingOptions, GethTrace, NameOrAddress, Transaction, TransactionRequest, H256,
+        BlockId, BlockNumber, GethDebugTracerType, GethDebugTracingCallOptions,
+        GethDebugTracingOptions, GethTrace, NameOrAddress, Transaction, TransactionRequest,
     },
 };
 
-use self::{
-    types::LogFrame,
-    utils::{parse_address, parse_number_array, parse_topic_buffer},
-};
+use self::utils::{parse_address, parse_buffer, parse_topic_buffer};
 
 mod types;
 mod utils;
@@ -24,24 +22,12 @@ const JS_CONTENT: &str = "{
     data: [],
     fault: function (log) {
     },
-    
     step: function (log) {
        var topicCount = (log.op.toString().match(/LOG(\\d)/) || [])[1];
         if (topicCount) {
-            const parseData = (data) => {
-                const res = [];
-                const len = Object.keys(data).length;
-
-                for(i = 0; i < len; i++){
-                    res.push(data[i.toString()]);
-                }
-
-                return res;
-            }
-
             const res = {
-                address: parseData(log.contract.getAddress()),
-                data: parseData(log.memory.slice(parseInt(log.stack.peek(0)), parseInt(log.stack.peek(0)) + parseInt(log.stack.peek(1)))),
+                address: log.contract.getAddress(),
+                data: log.memory.slice(parseInt(log.stack.peek(0)), parseInt(log.stack.peek(0)) + parseInt(log.stack.peek(1))),
             };
             
             for (var i = 0; i < topicCount; i++){
@@ -76,22 +62,20 @@ lazy_static! {
 
 pub async fn trace_transaction(tx: &mut Transaction) -> Option<Vec<TransactionLog>> {
     let client: RuntimeClient = env::RUNTIME_CACHE.client.clone();
-    let inst = Instant::now();
 
-    let typed = TransactionRequest {
-        from: Some(tx.from),
-        to: Some(NameOrAddress::Address(tx.to.unwrap())),
-        gas: Some(tx.gas),
-        gas_price: Some(tx.gas_price.unwrap()),
-        value: Some(tx.value),
-        data: Some(tx.input.clone()),
-        nonce: None,
-        chain_id: None,
-    };
-
+    // get the transaction traces
     if let Ok(geth_trace) = client
         .debug_trace_call(
-            typed,
+            TransactionRequest {
+                from: Some(tx.from),
+                to: Some(NameOrAddress::Address(tx.to.unwrap())),
+                gas: Some(tx.gas),
+                gas_price: Some(tx.gas_price.unwrap()),
+                value: Some(tx.value),
+                data: Some(tx.input.clone()),
+                nonce: None,
+                chain_id: None,
+            },
             Some(BlockId::Number(BlockNumber::Number(
                 tx.block_number.unwrap().sub(1),
             ))),
@@ -99,36 +83,47 @@ pub async fn trace_transaction(tx: &mut Transaction) -> Option<Vec<TransactionLo
         )
         .await
     {
+        // Check if the result is valid
         if let GethTrace::Unknown(trace_container) = geth_trace {
+            // All raw traces should be contained in an array
             if let Some(raw_traces) = trace_container.as_array() {
+                // Only itterate if length > 0
                 if raw_traces.len() > 0 {
+                    let mut transaction_logs: Vec<TransactionLog> = vec![];
+
+                    // decode all the raw traces
                     for trace_object in raw_traces {
                         if let Some(trace) = trace_object.as_object() {
                             let call_address = parse_address(trace["address"].clone());
-                            if let Some(_market) = Market::from_address(&call_address) {
-                                let data = Bytes::from(parse_number_array(trace["data"].clone()));
-                                let mut topics: Vec<H256> = vec![];
 
-                                for i in 0..trace.len() - 2 {
-                                    if let Some(topic) = parse_topic_buffer(&trace[&i.to_string()])
-                                    {
-                                        topics.push(topic);
+                            // If this a tracked market, decode the transaction log details
+                            if let Some(market) = Market::from_address(&call_address) {
+                                let mut raw_log: RawLog = RawLog {
+                                    topics: vec![],
+                                    data: parse_buffer(trace["data"].clone()),
+                                };
+
+                                let topic_count: usize = trace.len() - 2;
+                                if topic_count >= 1 {
+                                    for i in 0..trace.len() - 2 {
+                                        if let Some(topic) =
+                                            parse_topic_buffer(&trace[&i.to_string()])
+                                        {
+                                            raw_log.topics.push(topic);
+                                        }
                                     }
                                 }
 
-                                if topics.len() > 1 {
-                                    let _f: LogFrame = LogFrame {
-                                        address: call_address,
-                                        data,
-                                        topics,
-                                    };
-
-                                    println!("{:?}", inst.elapsed());
-                                    process::exit(1);
-                                }
+                                transaction_logs.push(TransactionLog {
+                                    address: call_address,
+                                    protocol: market.protocol,
+                                    raw: raw_log,
+                                });
                             }
                         }
                     }
+
+                    return Some(transaction_logs);
                 }
             }
         }
