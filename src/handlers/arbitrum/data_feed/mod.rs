@@ -1,10 +1,11 @@
+use ethers::providers::Middleware;
+use ethers::types::H256;
 use futures::{SinkExt, StreamExt};
 
 use tokio::sync::mpsc::Sender;
 use websocket_lite::{ClientBuilder, Message, Opcode};
 
 use crate::handlers::types::swap::BalanceChange;
-use crate::types::Transaction;
 use crate::{env, log_tracer};
 
 use self::types::RelayMessage;
@@ -32,20 +33,33 @@ pub async fn init(sender: &Sender<Vec<BalanceChange>>) -> websocket_lite::Result
 async fn handle_text_message(incomming: Message, _sender: &Sender<Vec<BalanceChange>>) {
     if let Some(message_text) = incomming.as_text() {
         if let Some(relay_message) = RelayMessage::from_json(message_text) {
-            let transactions: Vec<Transaction> = relay_message.decode();
+            let transaction_hashes: Vec<H256> = relay_message.decode();
 
-            if transactions.len() > 0 {
-                // let mut join_set: JoinSet<Option<Vec<TransactionLog>>> = JoinSet::new();
+            if transaction_hashes.len() > 0 {
+                let client = env::RUNTIME_CACHE.client.clone();
 
-                for tx in transactions {
-                    let transaction_request: ethers::types::TransactionRequest = tx.to_request();
-
-                    println!(" ---- {:#?}", tx.hash);
-                    if let Some(_transaction_logs) =
-                        log_tracer::trace_transaction(transaction_request.clone()).await
-                    {
-                        // process::exit(1);
+                for tx_hash in transaction_hashes {
+                    if let Ok(Some(mut transaction)) = client.get_transaction(tx_hash).await {
+                        if let Some(_transaction_logs) =
+                            log_tracer::trace_transaction(&mut transaction).await
+                        {
+                            // process::exit(1);
+                        }
                     }
+                    // if(s.is_ok()){
+                    //     println!("{:?}", inst.elapsed());
+                    //     // println!("{:#?}", s);
+                    //     process::exit(1);
+                    // }
+
+                    // let transaction_request: ethers::types::TransactionRequest = tx.to_request();
+
+                    // println!(" ---- {:#?}", tx.hash);
+                    // if let Some(_transaction_logs) =
+                    // log_tracer::trace_transaction(transaction_request.clone()).await
+                    // {
+                    //     // process::exit(1);
+                    // }
 
                     // join_set.spawn(async move {s
                     //         if response.len() > 0 {

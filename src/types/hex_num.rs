@@ -12,6 +12,16 @@ pub struct HexNum {
 }
 
 impl HexNum {
+    pub fn add(&mut self, other: HexNum) {
+        if self.is_negative && !other.is_negative {
+            self.value = other.value - self.value;
+        } else if !self.is_negative && other.is_negative {
+            self.value -= other.value;
+        } else {
+            self.value += other.value;
+        }
+    }
+
     pub fn from(value: U256) -> HexNum {
         return HexNum {
             value,

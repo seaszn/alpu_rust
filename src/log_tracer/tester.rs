@@ -1,86 +1,82 @@
-use std::{process, time::Instant};
-
 use crate::{
     env::{self, types::RuntimeClient},
-    types::TransactionLog,
+    types::{self, TransactionLog},
 };
 use ethers::{
+    abi::RawLog,
     providers::Middleware,
     types::{
-        BlockId, BlockNumber, GethDebugBuiltInTracerType, GethDebugTracerType,
-        GethDebugTracingCallOptions, GethDebugTracingOptions, TransactionRequest,
+        BlockId, BlockNumber, GethDebugTracerType, GethDebugTracingCallOptions,
+        GethDebugTracingOptions, GethTrace, TransactionRequest,
     },
 };
 
-const CALL_OPTIONS: GethDebugTracingCallOptions = GethDebugTracingCallOptions {
-    tracing_options: GethDebugTracingOptions {
+use super::utils::{parse_address, parse_buffer, parse_topic_buffer};
+
+extern crate lazy_static;
+
+const JS_CONTENT: &str = "{
+    data: [],
+    fault: function (log) {
+    },
+    
+    step: function (log) {
+       var topicCount = (log.op.toString().match(/LOG(\\d)/) || [])[1];
+        if (topicCount) {
+            const res = {
+                address: log.contract.getAddress(),
+                data: log.memory.slice(parseInt(log.stack.peek(0)), parseInt(log.stack.peek(0)) + parseInt(log.stack.peek(1))),
+            };
+            
+            for (var i = 0; i < topicCount; i++){
+                res[i.toString()] = log.stack.peek(i + 2);
+            }
+
+            this.data.push(res);
+        }
+    },
+
+    result: function () {
+        return this.data;
+    }
+}";
+
+lazy_static! {
+    static ref TYPE: GethDebugTracerType = GethDebugTracerType::JsTracer(JS_CONTENT.to_string());
+    static ref OPTIONS: GethDebugTracingOptions = ethers::types::GethDebugTracingOptions {
         enable_memory: Some(true),
         enable_return_data: Some(true),
         disable_storage: Some(false),
-        tracer: Some(GethDebugTracerType::BuiltInTracer(
-            GethDebugBuiltInTracerType::CallTracer,
-        )),
+        tracer: Some(TYPE.clone()),
         tracer_config: None,
         timeout: None,
-        disable_stack: Some(false),
-    },
-    state_overrides: None,
-};
+        disable_stack: Some(false)
+    };
+    static ref CALL_OPTIONS: GethDebugTracingCallOptions = GethDebugTracingCallOptions {
+        tracing_options: OPTIONS.clone(),
+        state_overrides: None
+    };
+}
 
 pub async fn trace_transaction(tx: TransactionRequest) -> Option<Vec<TransactionLog>> {
     let client: RuntimeClient = env::RUNTIME_CACHE.client.clone();
-    let inst = Instant::now();
+    let response = client
+        .debug_trace_call(
+            tx,
+            Some(BlockId::Number(BlockNumber::Latest)),
+            CALL_OPTIONS.clone(),
+        )
+        .await;
 
-    if let Ok(_response) = client
-        .debug_trace_call(tx, Some(BlockId::Number(BlockNumber::Latest)), CALL_OPTIONS)
-        .await
-    {
-        // println!("{:#?}", response.unwrap());
+    if response.is_ok() {
+        return Some(decode_trace(response.unwrap()));
+    } else {
+        return None;
     }
-
-    println!("{:#?}", inst.elapsed());
-    process::exit(0);
-
-    // return None;
 }
 
-// fn decode_trace_logs(trace: &GethTrace) {
-//     if let GethTrace::Unknown(trace_value) = trace {
-//         if let Some(raw_traces) = trace_value.as_array() {
-//             'trace_loop: for trace in raw_traces {
-//                 if let Some(trace_value) = trace.as_object() {
-//                     let address = parse_address(&trace_value["address"]);
-//                     if let Some(market) = from_address(&address) {
-//                         if let Some(trace_data) = parse_data(&trace_value["data"]) {
-//                             // let mut raw_log = RawLog{
-//                             //     data: trace_data,
-//                             //     topics: vec![]
-//                             // };
-
-//                             // for (key, value) in trace_value{
-//                             //     if key != "address" && key != "data"{
-//                             //         if let Some(topic_hash) = parse_topic_buffer(value){
-//                             //             raw_log.topics.push(topic_hash);
-//                             //         }
-//                             //         else {
-//                             //             continue 'trace_loop;
-//                             //         }
-//                             //     }
-//                             // }
-
-//                             println!("address: {}", market.contract_address);
-//                             // println!("{:#?}", raw_log);
-//                             // println!("{}", raw_log.data.encode_hex::<String>());
-//                         }
-//                     }
-//                 }
-//             }
-//         }
-//     }
-// }
-
-/*
-fn decode_trace_logs(trace: GethTrace, hash: String) -> Vec<TransactionLog> {
+fn decode_trace(trace: GethTrace) -> Vec<TransactionLog> {
+    let GethTrace::Unknown(value) = trace else {return vec![]};
     let input_array: &Vec<serde_json::Value> = value.as_array().unwrap();
     let mut transaction_logs: Vec<TransactionLog> = vec![];
 
@@ -92,40 +88,28 @@ fn decode_trace_logs(trace: GethTrace, hash: String) -> Vec<TransactionLog> {
 
             if let Some(market) = types::market::from_address(address) {
                 let mut raw_log: RawLog = RawLog {
+                    topics: vec![],
                     data: vec![],
                     topics: vec![],
                 };
 
                 for (key, value) in input_element.as_object().unwrap() {
                     if key == "data" {
-                        if !value.is_object() {
-                            continue 'input_loop;
+                        if value.is_object() {
+                            raw_log.data = parse_buffer(value);
                         } else {
-                            raw_log.data = parse_buffer(value).to_vec();
+                            continue 'input_loop;
                         }
                     } else if key != "address" {
-                        if value.is_string() {
-                            if let Some(topic_data) = parse_topic_buffer(value) {
-                                raw_log.topics.push(topic_data);
-                            } else {
-                                continue 'input_loop;
-                            }
+                        let topic_data: Option<ethers::types::H256> = parse_topic_buffer(value);
+
+                        if topic_data.is_some() && value.is_string() {
+                            raw_log.topics.push(topic_data.unwrap());
                         } else {
                             continue 'input_loop;
                         }
                     }
                 }
-
-                // println!("{:#?}", test(raw_log.data.clone()));
-                println!("raw data: {:?}", raw_log.data);
-                println!("data: {:?}", H512::from_slice(raw_log.data.as_slice()));
-                println!("data 2: 0{}", test(raw_log.data));
-
-                println!("topics: {:?}", raw_log.topics);
-                println!("hash : {}", hash);
-                println!("address : {}", market.contract_address);
-
-                process::exit(1);
 
                 if raw_log.data.len() > 0 {
                     transaction_logs.push(TransactionLog {
@@ -137,20 +121,5 @@ fn decode_trace_logs(trace: GethTrace, hash: String) -> Vec<TransactionLog> {
             }
         }
     }
-
     return transaction_logs;
 }
-
-fn test(input: Vec<u8>) -> String {
-    let mut result: String = "".to_string();
-
-    let f = "".to_string();
-
-    for i in input {
-        result.push_str(format_radix(i as u32, 16).as_str());
-    }
-
-    return result;
-    // let s = result.into_iter().flatten().collect();
-}
- */

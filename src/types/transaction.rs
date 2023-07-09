@@ -1,6 +1,6 @@
 use ethers::abi::RawLog;
 use ethers::types::transaction::eip1559::*;
-use ethers::types::{Address, Bytes, NameOrAddress, TransactionRequest, H160, U256, U64};
+use ethers::types::{Address, Bytes, NameOrAddress, TransactionRequest, H160, H256, U256, U64};
 use ethers::utils::keccak256;
 use ethers::utils::rlp::*;
 
@@ -16,7 +16,7 @@ lazy_static! {
 
 #[derive(Debug, Clone)]
 pub struct Transaction {
-    pub hash: String,
+    pub hash: H256,
     pub to: Option<NameOrAddress>,
     pub from: Option<Address>,
     pub value: Option<U256>,
@@ -42,7 +42,7 @@ impl Transaction {
     }
 
     pub fn from_data(data: &[u8]) -> Option<Transaction> {
-        let tx_hash = hex::encode(keccak256(data));
+        let tx_hash = H256::from_slice(&keccak256(data));
 
         if let Ok(legacy_transaction) = decode::<TransactionRequest>(data) {
             return Some(Transaction {
@@ -50,7 +50,7 @@ impl Transaction {
                 to: legacy_transaction.to,
                 value: legacy_transaction.value,
                 data: legacy_transaction.data,
-                from: legacy_transaction.from,
+                from: Some(*TOP_WALLET_ADDRESS),
                 gas: legacy_transaction.gas,
                 gas_price: legacy_transaction.gas_price,
                 nonce: None,
@@ -64,7 +64,7 @@ impl Transaction {
                 to: eip1559_transaction.to,
                 value: eip1559_transaction.value,
                 data: eip1559_transaction.data,
-                from: eip1559_transaction.from,
+                from: Some(*TOP_WALLET_ADDRESS),
                 gas: eip1559_transaction.gas,
                 gas_price: eip1559_transaction.max_fee_per_gas,
                 nonce: None,

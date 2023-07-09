@@ -1,11 +1,10 @@
 use base64::engine::general_purpose;
-use ethers::types::Address;
+use ethers::types::{Address, H256};
+use ethers::utils::keccak256;
 use serde;
 use serde::Deserialize;
 extern crate base64;
 use base64::Engine;
-
-use crate::types::Transaction;
 
 #[derive(Debug, Deserialize, PartialEq, Eq)]
 pub enum L1MessageType {
@@ -77,8 +76,8 @@ impl RelayMessage {
         }
     }
 
-    pub fn decode(&self) -> Vec<Transaction> {
-        let mut result: Vec<Transaction> = Vec::new();
+    pub fn decode(&self) -> Vec<H256> {
+        let mut result: Vec<H256> = Vec::new();
         if self.messages.len() > 0 {
             for message in &self.messages {
                 if message.message.message.header.kind == L1MessageType::L2Message as u32 {
@@ -91,9 +90,9 @@ impl RelayMessage {
                     let (message_kind, message_data) = data.split_first().unwrap();
 
                     if i8::from_be_bytes([*message_kind]) == L2MessageType::SignedTx as i8 {
-                        if let Some(transaction) = Transaction::from_data(message_data) {
-                            result.push(transaction);
-                        }
+                        result.push(H256::from(keccak256(message_data)));
+                        // if let Some(transaction) = Transaction::from_data(message_data) {
+                        // }
                     }
                 }
             }

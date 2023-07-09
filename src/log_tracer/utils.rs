@@ -1,32 +1,33 @@
-use ethers::types::{Bytes, CallFrame};
+use ethers::{
+    abi::AbiEncode,
+    types::{Bytes, H160, H256, U256},
+};
+use serde_json::Value;
 
-use super::types::TraceFrame;
-
-pub fn format_data(data: &[u8]) -> Vec<Bytes> {
-    let data_chunks: Vec<&[u8]> = data.chunks(32).collect();
-    let mut result: Vec<Bytes> = vec![];
-
-    for chunk in data_chunks {
-        result.push(Bytes::from(chunk.to_vec()));
-    }
-
-    return result;
-}
-
-pub fn trim_bytes_to(bytes: Bytes, length: usize) -> Vec<u8> {
-    return bytes.split_at(bytes.len() - length).1.to_vec();
-}
-
-pub fn flatten_call_frames(top_call_frame: &CallFrame) -> Vec<TraceFrame> {
-    let mut result: Vec<TraceFrame> = vec![];
-
-    if let Some(internal_calls) = &top_call_frame.calls {
-        for call in internal_calls {
-            result.append(&mut flatten_call_frames(call));
+pub fn parse_topic_buffer(value: &Value) -> Option<H256> {
+    if value.is_string() {
+        if let Ok(parse_result) = U256::from_dec_str(value.as_str().unwrap()) {
+            return Some(H256::from_slice(parse_result.encode().as_slice()));
         }
     }
 
-    result.push(TraceFrame::from_call_frame(top_call_frame.clone()));
+    return None;
+}
+
+pub fn parse_address(value: Value) -> H160 {
+    let bytes = Bytes::from(parse_number_array(value));
+    return H160::from_slice(&bytes);
+}
+
+pub fn parse_number_array(data: Value) -> Vec<u8> {
+    let mut result: Vec<u8> = vec![];
+
+    if let Some(arr) = data.as_array() {
+        for a in arr {
+            let value: u8 = a.to_string().parse().unwrap();
+            result.push(value);
+        }
+    }
 
     return result;
 }
