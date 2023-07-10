@@ -35,6 +35,7 @@ pub async fn init(sender: &Sender<Vec<BalanceChange>>) -> websocket_lite::Result
     Ok(())
 }
 
+#[inline(always)]
 async fn handle_text_message(
     incomming: Message,
     sender: &Sender<Vec<BalanceChange>>,

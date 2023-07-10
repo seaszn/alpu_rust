@@ -120,6 +120,8 @@ pub async fn trace_transaction(tx: &mut Transaction) -> Option<Vec<TransactionLo
                                     raw: raw_log,
                                 });
                             }
+                        } else {
+                            return None;
                         }
                     }
 

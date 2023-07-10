@@ -4,6 +4,7 @@ use ethers::{
 };
 use serde_json::Value;
 
+#[inline(always)]
 pub fn parse_topic_buffer(value: &Value) -> Option<H256> {
     if value.is_string() {
         if let Ok(parse_result) = U256::from_dec_str(value.as_str().unwrap()) {
@@ -14,6 +15,7 @@ pub fn parse_topic_buffer(value: &Value) -> Option<H256> {
     return None;
 }
 
+#[inline(always)]
 pub fn parse_address(value: Value) -> H160 {
     let bytes = Bytes::from(parse_buffer(value));
     return H160::from_slice(&bytes);

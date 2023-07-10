@@ -1,5 +1,7 @@
 use std::{sync::Arc, vec};
 
+use rayon::prelude::{IntoParallelIterator, ParallelIterator};
+
 use crate::{
     env::types::{RuntimeClient, UniswapQueryContract},
     exchanges::types::Protocol,
@@ -38,7 +40,7 @@ pub fn parse_balance_changes(logs: Vec<TransactionLog>) -> Vec<BalanceChange> {
     result.append(&mut uniswap_v2::parse_balance_changes(
         &logs
             .clone()
-            .into_iter()
+            .into_par_iter()
             .filter(|x| x.protocol == Protocol::UniswapV2)
             .collect(),
     ));

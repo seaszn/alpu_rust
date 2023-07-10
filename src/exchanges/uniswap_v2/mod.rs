@@ -1,6 +1,7 @@
 use std::{ops::Mul, sync::*};
 
-use ethers::{abi::RawLog, prelude::*};
+use ethers::prelude::*;
+use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator, IntoParallelRefIterator};
 use tokio::task::JoinSet;
 
 use self::types::{
@@ -25,6 +26,7 @@ lazy_static! {
     );
 }
 
+#[inline(always)]
 pub async fn get_markets(
     exchange: &Exchange,
     network: Arc<Network>,
@@ -58,8 +60,8 @@ pub async fn get_markets(
 
             if response.is_ok() {
                 for element in response.unwrap() {
-                    let token0 = tokens.iter().find(|s| s.contract_address.0 == element[0].0);
-                    let token1 = tokens.iter().find(|s| s.contract_address.0 == element[1].0);
+                    let token0 = tokens.par_iter().find_first(|s| s.contract_address.0 == element[0].0);
+                    let token1 = tokens.par_iter().find_first(|s| s.contract_address.0 == element[1].0);
 
                     if token0.is_some() && token1.is_some() {
                         batch_markets.push(Market {
@@ -89,29 +91,47 @@ pub async fn get_markets(
     return exchange_markets;
 }
 
+#[inline(always)]
 pub fn parse_balance_changes(logs: &Vec<TransactionLog>) -> Vec<BalanceChange> {
     if logs.len() > 1 {
-        let raw_logs: Vec<RawLog> = logs.clone().into_iter().map(|x| x.raw).collect();
-        let mut swap_events: Vec<BalanceChange> = vec![];
+        let mut stacked_balance_changes: Vec<Vec<BalanceChange>> = vec![];
+        logs.into_par_iter()
+            .map(move |transaction_log| -> Vec<BalanceChange> {
+                if let Ok(filters) =
+                    ethers::contract::decode_logs::<uniswap_v2_pair::SwapFilter>(&[transaction_log
+                        .raw
+                        .clone()])
+                {
+                    let mut swap_events: Vec<BalanceChange> = vec![];
 
-        for i in 0..raw_logs.len() {
-            if let Ok(filters) =
-                ethers::contract::decode_logs::<uniswap_v2_pair::SwapFilter>(&[raw_logs[i].clone()])
-            {
-                for swap in filters {
-                    swap_events.push(BalanceChange {
-                        address: logs[i].address,
-                        amount_0_in: swap.amount_0_in,
-                        amount_1_in: swap.amount_1_in,
-                        amount_0_out: swap.amount_0_out,
-                        amount_1_out: swap.amount_1_out,
-                    });
+                    for swap in filters {
+                        swap_events.push(BalanceChange {
+                            address: transaction_log.address,
+                            amount_0_in: swap.amount_0_in,
+                            amount_1_in: swap.amount_1_in,
+                            amount_0_out: swap.amount_0_out,
+                            amount_1_out: swap.amount_1_out,
+                        });
+                    }
+
+                    return swap_events;
                 }
+
+                return vec![];
+            })
+            .collect_into_vec(&mut stacked_balance_changes);
+
+        let mut result: Vec<BalanceChange> = vec![];
+        for mut change_stack in stacked_balance_changes {
+            if change_stack.len() > 0 {
+                result.append(&mut change_stack);
             }
         }
 
-        return swap_events;
+        return result;
     }
 
     return vec![];
 }
+
+// }
