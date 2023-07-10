@@ -1,3 +1,8 @@
+use std::sync::Arc;
+
+use env::RuntimeCache;
+use networks::Network;
+
 #[macro_use]
 extern crate lazy_static;
 extern crate base64;
@@ -12,23 +17,28 @@ pub mod utils;
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() {
+    let runtime_config: env::RuntimeConfig = env::RuntimeConfig::from_dot_env_file();
+    let runtime_network: Arc<Network> = Arc::new(Network::from_chain_id(&runtime_config.chain_id));
+
+    println!("Connecting to {} network...\n", runtime_network.name);
+
     utils::logger::clear_console();
 
-    // println!("{:?}", hex::decode("00000000000000000000000000000000000000000000001625680334c788f7320000000000000000000000000000000000000000000094d23a6e9a67286a1302").unwrap());
+    match RuntimeCache::new(&runtime_config, &runtime_network) {
+        Ok(mut runtime_cache) => {
+            println!("Query: {}", runtime_cache.uniswap_query.address());
+            println!("Wallet: {}", runtime_cache.client.address());
+            println!("Executor: {}\n", runtime_cache.bundle_executor.address());
+            
+            println!("Found {} tokens..", runtime_network.tokens.len());
 
-    println!("\nRunning on {}\n", env::RUNTIME_NETWORK.name);
+            runtime_cache.init_markets(&runtime_network).await;
+            println!("Found {} markets..\n", runtime_cache.markets.len());
+        }
+        Err(error) => {
+            println!("{:#?}", error);
+        }
+    }
 
-    println!("\nWallet: {}", env::RUNTIME_CACHE.client.address());
-    println!("Executor: {}", env::RUNTIME_CACHE.bundle_executor.address());
-    println!("Query: {}", env::RUNTIME_CACHE.uniswap_query.address());
-
-    println!("\nLoaded {} markets\n", env::RUNTIME_CACHE.markets.len());
-
-    // println!("Found {} markets...", env::run);
-    // RuntimeCache::load_markets();
-    // Get the markets
-
-    // Calculate the route templates
-
-    handlers::init(env::RUNTIME_CONFIG.chain_id).await;
+    // handlers::init(env::RUNTIME_CONFIG.chain_id).await;
 }

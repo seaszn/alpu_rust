@@ -54,7 +54,7 @@ impl Transaction {
                 gas: legacy_transaction.gas,
                 gas_price: legacy_transaction.gas_price,
                 nonce: None,
-                chain_id: Some(U64::from(env::RUNTIME_NETWORK.chain_id)),
+                chain_id: None,
             });
         } else if let Ok(eip1559_transaction) =
             decode::<Eip1559TransactionRequest>(data.split_first().unwrap().1)
@@ -68,7 +68,7 @@ impl Transaction {
                 gas: eip1559_transaction.gas,
                 gas_price: eip1559_transaction.max_fee_per_gas,
                 nonce: None,
-                chain_id: Some(U64::from(env::RUNTIME_NETWORK.chain_id)),
+                chain_id: None,
             });
         }
 

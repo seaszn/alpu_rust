@@ -17,12 +17,15 @@ pub struct Network {
     pub uniswap_query_address: Address,
 }
 
-pub fn init(chain_id: &u32) -> Network {
-    if *chain_id == arbitrum::CHAIN_ID {
-        return arbitrum::get_instance();
+impl Network{
+    pub fn from_chain_id(chain_id: &u32) -> Network{
+        if *chain_id == arbitrum::CHAIN_ID {
+            return arbitrum::get_instance();
+        }
+        else {
+            panic!("NETWORK NOT FOUND");
+        }
     }
-
-    panic!("chain_id UNKOWN");
 }
 
 fn load_exchanges_from_file(network_name: &str) -> Vec<Exchange> {

@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
 use ethers::types::{Address, H160};
+use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 
-use crate::{env, exchanges::types::Protocol};
+use crate::{env::RuntimeCache, exchanges::types::Protocol};
 
 use super::Token;
 
@@ -16,13 +17,17 @@ pub struct Market {
 }
 
 impl Market {
-    pub fn from_address(address: &H160) -> Option<Arc<Market>> {
-        for market in &env::RUNTIME_CACHE.markets {
+    pub fn from_address(address: &H160, runtime_cache: &Arc<RuntimeCache>) -> Option<Arc<Market>> {
+        for market in &runtime_cache.markets {
             if market.contract_address.0 == address.0 {
                 return Some(market.clone());
             }
         }
-        
+
         return None;
+    }
+
+    pub fn get_market_addressess(markets: &Vec<Arc<Market>>) -> Vec<H160> {
+        return markets.par_iter().map(|x| x.contract_address).collect();
     }
 }

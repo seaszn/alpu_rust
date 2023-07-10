@@ -3,7 +3,7 @@ use std::sync::Arc;
 use ethers::prelude::*;
 use serde::Deserialize;
 
-use crate::env;
+use crate::{env::{self, RuntimeCache}, networks::Network};
 
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
 pub struct Token {
@@ -13,8 +13,11 @@ pub struct Token {
 }
 
 impl Token {
-    pub fn from_address(address: &NameOrAddress) -> Option<Arc<Token>> {
-        for market in &env::RUNTIME_NETWORK.tokens {
+    pub fn from_address(
+        address: &NameOrAddress,
+        runtime_network: &Arc<Network>,
+    ) -> Option<Arc<Token>> {
+        for market in &runtime_network.tokens {
             if market.contract_address.0 == address.as_address().unwrap().0 {
                 return Some(market.clone());
             }

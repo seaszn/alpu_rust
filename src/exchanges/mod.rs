@@ -1,13 +1,22 @@
-use std::{sync::Arc, vec};
+use std::{collections::HashMap, io::Error, sync::Arc, vec};
 
-use rayon::prelude::{IntoParallelIterator, ParallelIterator};
+use ethers::{
+    abi::Address, prelude::k256::elliptic_curve::bigint::modular::runtime_mod, types::H160,
+};
+use rayon::{
+    collections::hash_map,
+    prelude::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator},
+};
 
 use crate::{
-    env::types::{RuntimeClient, UniswapQueryContract},
+    env::{
+        types::{RuntimeClient, UniswapQueryContract},
+        RuntimeCache,
+    },
     exchanges::types::Protocol,
     handlers::types::swap::BalanceChange,
     networks::Network,
-    types::{market::Market, TransactionLog},
+    types::{market::Market, ReserveTable, TransactionLog},
 };
 
 use self::types::Exchange;
@@ -17,20 +26,24 @@ pub mod types;
 mod uniswap_v2;
 
 pub async fn get_exchange_markets(
-    exchange: &Exchange,
-    network: Arc<Network>,
-    client: RuntimeClient,
-    uniswap_query: UniswapQueryContract,
-) -> Vec<Arc<Market>> {
-    println!("Loading markets from factory {}", exchange.factory_address);
+    network: &Network,
+    runtime_cache: &RuntimeCache,
+) -> Result<Vec<Arc<Market>>, Error> {
+    let mut result: Vec<Arc<Market>> = vec![];
 
-    if exchange.protocol == Protocol::UniswapV2 {
-        return uniswap_v2::get_markets(exchange, network, client, uniswap_query).await;
-    } else if exchange.protocol == Protocol::StableSwap {
-        // return stable_swap::get_markets(exchange);
-    }
+    for exchange in &network.exchanges {
+        if exchange.protocol == Protocol::UniswapV2 {
+            if let Ok(mut response) =
+                uniswap_v2::get_markets(exchange, network.clone(), runtime_cache.clone()).await
+            {
+                result.append(&mut response);
+            };
+        } else if exchange.protocol == Protocol::StableSwap {
+            // return stable_swap::get_markets(exchange);
+        }
+    };
 
-    return vec![];
+    return Ok(result);
 }
 
 pub fn parse_balance_changes(logs: Vec<TransactionLog>) -> Vec<BalanceChange> {
@@ -46,4 +59,25 @@ pub fn parse_balance_changes(logs: Vec<TransactionLog>) -> Vec<BalanceChange> {
     ));
 
     return result;
+}
+
+pub async fn get_market_reserves(markets: &Vec<Arc<Market>>, runtime_cache: &RuntimeCache) {
+    let addressess: Vec<(Address, Protocol)> = markets
+        .par_iter()
+        .map(|x| (x.contract_address, x.protocol))
+        .collect();
+
+    // Uniswap V2
+    let markets: ReserveTable = uniswap_v2::get_market_reserves(
+        &addressess
+            .clone()
+            .into_par_iter()
+            .filter(|x| x.1 == Protocol::UniswapV2 || x.1 == Protocol::StableSwap)
+            .collect::<Vec<(H160, Protocol)>>()
+            .par_iter()
+            .map(|x| x.0)
+            .collect(),
+        runtime_cache,
+    )
+    .await;
 }

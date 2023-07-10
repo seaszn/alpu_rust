@@ -1,7 +1,7 @@
-use std::ops::Sub;
+use std::{ops::Sub, sync::Arc};
 
 use crate::{
-    env::{self, types::RuntimeClient},
+    env::RuntimeCache,
     types::{market::Market, TransactionLog},
 };
 use ethers::{
@@ -60,11 +60,13 @@ lazy_static! {
     };
 }
 
-pub async fn trace_transaction(tx: &mut Transaction) -> Option<Vec<TransactionLog>> {
-    let client: RuntimeClient = env::RUNTIME_CACHE.client.clone();
-
+pub async fn trace_transaction(
+    tx: &mut Transaction,
+    runtime_cache: &Arc<RuntimeCache>,
+) -> Option<Vec<TransactionLog>> {
     // get the transaction traces
-    if let Ok(geth_trace) = client
+    if let Ok(geth_trace) = runtime_cache
+        .client
         .debug_trace_call(
             TransactionRequest {
                 from: Some(tx.from),
@@ -97,7 +99,9 @@ pub async fn trace_transaction(tx: &mut Transaction) -> Option<Vec<TransactionLo
                             let call_address = parse_address(trace["address"].clone());
 
                             // If this a tracked market, decode the transaction log details
-                            if let Some(market) = Market::from_address(&call_address) {
+                            if let Some(market) =
+                                Market::from_address(&call_address, &runtime_cache)
+                            {
                                 let mut raw_log: RawLog = RawLog {
                                     topics: vec![],
                                     data: parse_buffer(trace["data"].clone()),

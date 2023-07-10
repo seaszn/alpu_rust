@@ -13,18 +13,20 @@ pub struct RuntimeConfig {
     pub min_market_reserves: f32,
 }
 
-pub fn init() -> RuntimeConfig {
-    dotenv().ok();
+impl RuntimeConfig {
+    pub fn from_dot_env_file() -> RuntimeConfig {
+        dotenv().ok();
 
-    return RuntimeConfig {
-        chain_id: read_u32("CHAIN_ID"),
-        rpc_endpoint: read_url("RPC_ENDPOINT"),
-        feed_endpoint: read_url("FEED_ENDPOINT"),
-        executor_address: read_address("BUNDLE_EXECUTOR"),
-        private_key: read_string("PRIVATE_KEY"),
-        route_restraints: (read_u32("MIN_ROUTE_LENGTH"), read_u32("MAX_ROUTE_LENGTH")),
-        min_market_reserves: read_f32("MIN_MARKET_RESERVES"),
-    };
+        return RuntimeConfig {
+            chain_id: read_u32("CHAIN_ID"),
+            rpc_endpoint: read_url("RPC_ENDPOINT"),
+            feed_endpoint: read_url("FEED_ENDPOINT"),
+            executor_address: read_address("BUNDLE_EXECUTOR"),
+            private_key: read_string("PRIVATE_KEY"),
+            route_restraints: (read_u32("MIN_ROUTE_LENGTH"), read_u32("MAX_ROUTE_LENGTH")),
+            min_market_reserves: read_f32("MIN_MARKET_RESERVES"),
+        };
+    }
 }
 
 fn read_address(input: &str) -> Address {
