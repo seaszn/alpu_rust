@@ -1,19 +1,10 @@
-use std::{collections::HashMap, io::Error, sync::Arc, vec};
+use std::{io::Error, sync::Arc, vec};
 
-use ethers::{
-    abi::Address, prelude::k256::elliptic_curve::bigint::modular::runtime_mod, types::H160,
-};
-use lazy_static::__Deref;
-use rayon::{
-    collections::hash_map,
-    prelude::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator},
-};
+use ethers::{abi::Address, types::H160};
+use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 
 use crate::{
-    env::{
-        types::{RuntimeClient, UniswapQueryContract},
-        RuntimeCache,
-    },
+    env::RuntimeCache,
     exchanges::types::Protocol,
     handlers::types::swap::BalanceChange,
     networks::Network,
@@ -34,7 +25,6 @@ pub async fn get_exchange_markets(
 
     for exchange in &network.exchanges {
         if exchange.protocol == Protocol::UniswapV2 {
-            
             if let Ok(mut response) =
                 uniswap_v2::get_markets(exchange, network.clone(), runtime_cache).await
             {
@@ -43,7 +33,7 @@ pub async fn get_exchange_markets(
         } else if exchange.protocol == Protocol::StableSwap {
             // return stable_swap::get_markets(exchange);
         }
-    };
+    }
 
     return Ok(result);
 }
@@ -63,22 +53,27 @@ pub fn parse_balance_changes(logs: Vec<TransactionLog>) -> Vec<BalanceChange> {
     return result;
 }
 
-pub async fn get_market_reserves(markets: &Vec<Arc<Market>>, runtime_cache: &RuntimeCache) {
+pub async fn get_market_reserves(
+    markets: &Vec<Arc<Market>>,
+    runtime_cache: &RuntimeCache,
+) -> ReserveTable {
     let addressess: Vec<(Address, Protocol)> = markets
-        .par_iter()
+        .iter()
         .map(|x| (x.contract_address, x.protocol))
         .collect();
 
     // Uniswap V2
     let uniswap_v2_markets: ReserveTable = uniswap_v2::get_market_reserves(
         addressess
-            .into_par_iter()
+            .iter()
             .filter(|x| x.1 == Protocol::UniswapV2 || x.1 == Protocol::StableSwap)
-            .collect::<Vec<(H160, Protocol)>>()
-            .par_iter()
+            .collect::<Vec<&(H160, Protocol)>>()
+            .iter()
             .map(|x| x.0)
-            .collect(),
-        runtime_cache.clone(),
+            .collect::<Vec<H160>>(),
+        runtime_cache,
     )
     .await;
+
+    return uniswap_v2_markets;
 }

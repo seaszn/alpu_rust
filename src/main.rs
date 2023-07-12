@@ -6,7 +6,6 @@ use networks::Network;
 #[macro_use]
 extern crate lazy_static;
 extern crate base64;
-
 pub mod env;
 pub mod exchanges;
 mod handlers;

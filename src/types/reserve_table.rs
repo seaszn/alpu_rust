@@ -1,6 +1,6 @@
-use std::collections::HashMap;
+use ethers::types::U256;
 
-use ethers::{types::H160, types::U256};
+use super::Dictionary;
 
 pub type Reserves = (U256, U256);
-pub type ReserveTable = HashMap<H160, Reserves>;
+pub type ReserveTable = Dictionary<[u8; 20], Reserves>;

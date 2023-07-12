@@ -1,5 +1,5 @@
+use itertools::Itertools;
 use std::{
-    collections::HashMap,
     io::{Error, ErrorKind},
     ops::Mul,
     sync::*,
@@ -141,39 +141,34 @@ pub fn parse_balance_changes(logs: &Vec<TransactionLog>) -> Vec<BalanceChange> {
 }
 
 #[inline(always)]
-pub async fn get_market_reserves(
-    markets: Vec<Address>,
-    runtime_cache: RuntimeCache,
-) -> ReserveTable {
+pub async fn get_market_reserves(markets: Vec<H160>, runtime_cache: &RuntimeCache) -> ReserveTable {
     let mut join_set: JoinSet<Vec<Reserves>> = JoinSet::new();
-    let market_addressess = markets.clone();
+    let cache = Arc::downgrade(&runtime_cache.uniswap_query).clone();
 
-    join_set.spawn(async move {
-        for s in markets.chunks(50) {
-            if let Ok(response) = runtime_cache
-                .uniswap_query
-                .get_reserves_by_pairs(s.to_vec())
-                .await
-            {
-                let reserves: Vec<Reserves> = response
-                    .into_par_iter()
-                    .map(|element: [U256; 3]| (element[0], element[1]))
-                    .collect();
+    for market_addressess in &markets.clone().into_iter().chunks(52) {
+        let addressess: Vec<H160> = market_addressess.collect();
+        let uniswap_query = unsafe { &*cache.as_ptr() };
 
-                return reserves;
+        join_set.spawn(async move {
+            match uniswap_query.get_reserves_by_pairs(addressess).await {
+                Ok(response) => {
+                    return response
+                        .into_iter()
+                        .map(|element: [U256; 3]| (element[0], element[1]))
+                        .collect::<Vec<Reserves>>();
+                }
+                Err(_) => {
+                    return vec![];
+                }
             }
-        }
+        });
+    }
 
-        return vec![];
-    });
-
-    let mut map: ReserveTable = HashMap::new();
+    let mut map: ReserveTable = ReserveTable::new();
     while let Some(Ok(result)) = join_set.join_next().await {
         if result.len() > 0 {
             for i in 0..result.len() {
-                // do check
-
-                map.insert(market_addressess[i], result[i]);
+                map.add(markets[i].0, result[i])
             }
         }
     }

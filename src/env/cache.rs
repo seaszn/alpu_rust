@@ -3,7 +3,6 @@ use ethers::{
     middleware::SignerMiddleware,
     providers::{Http, Middleware, Provider},
     signers::LocalWallet,
-    types::H160,
 };
 
 use super::{
@@ -13,11 +12,10 @@ use super::{
 use crate::{
     exchanges::{get_exchange_markets, get_market_reserves},
     networks::Network,
-    types::market::Market,
+    types::{market::Market, ReserveTable},
 };
 use futures::executor::block_on;
-use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
-use std::{io::Error, sync::Arc, time::Instant, ops::DerefMut};
+use std::{io::Error, sync::Arc, time::Instant};
 
 abigen!(UniswapQuery, "src/contracts/abi/UniswapQuery.json");
 abigen!(BundleExecutor, "src/contracts/abi/BundleExecutor.json");
@@ -76,12 +74,11 @@ impl RuntimeCache {
                 unfiltered_markets.append(&mut result);
 
                 let inst = Instant::now();
-                let f = get_market_reserves(&unfiltered_markets, &self).await;
-                println!("time took: {:?}", inst.elapsed())
+                let _market_reserves: ReserveTable = get_market_reserves(&unfiltered_markets, &self).await;
+                println!("found {} markets in: {:?}", _market_reserves.len(), inst.elapsed())
             }
             Err(_) => {}
         };
     }
     pub async fn calculate_routes(&self) {}
 }
-
