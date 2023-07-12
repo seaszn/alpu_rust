@@ -15,12 +15,10 @@ use self::types::{uniswap_v2_pair, UniswapV2Factory, UniswapV2FactoryContract};
 
 use super::Exchange;
 use crate::{
-    env::{
-        RuntimeCache,
-    },
+    env::RuntimeCache,
     handlers::types::swap::BalanceChange,
     networks::Network,
-    types::{market::Market, TransactionLog, ReserveTable, Reserves},
+    types::{market::Market, ReserveTable, Reserves, TransactionLog},
 };
 
 mod types;
@@ -29,13 +27,13 @@ mod types;
 pub async fn get_markets(
     exchange: &Exchange,
     network: &Network,
-    runtime_cache: &RuntimeCache
+    runtime_cache: &RuntimeCache,
 ) -> Result<Vec<Arc<Market>>, Error> {
     let factory_contract: UniswapV2FactoryContract =
         UniswapV2Factory::new(exchange.factory_address, runtime_cache.client.clone());
 
     if let Ok(market_count) = factory_contract.all_pairs_length().await {
-        let batch_size: U256 = U256::from_dec_str("1000").unwrap();
+        let batch_size: U256 = U256::from_dec_str("100").unwrap();
         let batch_count: U256 = market_count / batch_size + 1;
         let exchange_fee: i32 = exchange.base_fee;
         let exchange_protocol = exchange.protocol;
@@ -142,23 +140,41 @@ pub fn parse_balance_changes(logs: &Vec<TransactionLog>) -> Vec<BalanceChange> {
     return vec![];
 }
 
-// }
 #[inline(always)]
-pub async fn get_market_reserves(markets: &Vec<Address>, runtime_cache: &RuntimeCache) -> ReserveTable {
+pub async fn get_market_reserves(
+    markets: Vec<Address>,
+    runtime_cache: RuntimeCache,
+) -> ReserveTable {
+    let mut join_set: JoinSet<Vec<Reserves>> = JoinSet::new();
+    let market_addressess = markets.clone();
+
+    join_set.spawn(async move {
+        for s in markets.chunks(50) {
+            if let Ok(response) = runtime_cache
+                .uniswap_query
+                .get_reserves_by_pairs(s.to_vec())
+                .await
+            {
+                let reserves: Vec<Reserves> = response
+                    .into_par_iter()
+                    .map(|element: [U256; 3]| (element[0], element[1]))
+                    .collect();
+
+                return reserves;
+            }
+        }
+
+        return vec![];
+    });
 
     let mut map: ReserveTable = HashMap::new();
-    if let Ok(response) = &runtime_cache
-        .uniswap_query
-        .get_reserves_by_pairs(markets.clone())
-        .await
-    {
-        let reserves: Vec<Reserves> = response
-            .into_par_iter()
-            .map(|element: &[U256; 3]| (element[0], element[1]))
-            .collect();
+    while let Some(Ok(result)) = join_set.join_next().await {
+        if result.len() > 0 {
+            for i in 0..result.len() {
+                // do check
 
-        for i in 0..reserves.len() {
-            map.insert(markets[i], reserves[i]);
+                map.insert(market_addressess[i], result[i]);
+            }
         }
     }
 
