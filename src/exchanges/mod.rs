@@ -3,6 +3,7 @@ use std::{collections::HashMap, io::Error, sync::Arc, vec};
 use ethers::{
     abi::Address, prelude::k256::elliptic_curve::bigint::modular::runtime_mod, types::H160,
 };
+use lazy_static::__Deref;
 use rayon::{
     collections::hash_map,
     prelude::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator},
@@ -33,8 +34,9 @@ pub async fn get_exchange_markets(
 
     for exchange in &network.exchanges {
         if exchange.protocol == Protocol::UniswapV2 {
+            
             if let Ok(mut response) =
-                uniswap_v2::get_markets(exchange, network.clone(), runtime_cache.clone()).await
+                uniswap_v2::get_markets(exchange, network.clone(), runtime_cache).await
             {
                 result.append(&mut response);
             };
@@ -68,16 +70,15 @@ pub async fn get_market_reserves(markets: &Vec<Arc<Market>>, runtime_cache: &Run
         .collect();
 
     // Uniswap V2
-    let markets: ReserveTable = uniswap_v2::get_market_reserves(
-        &addressess
-            .clone()
+    let uniswap_v2_markets: ReserveTable = uniswap_v2::get_market_reserves(
+        addressess
             .into_par_iter()
             .filter(|x| x.1 == Protocol::UniswapV2 || x.1 == Protocol::StableSwap)
             .collect::<Vec<(H160, Protocol)>>()
             .par_iter()
             .map(|x| x.0)
             .collect(),
-        runtime_cache,
+        runtime_cache.clone(),
     )
     .await;
 }

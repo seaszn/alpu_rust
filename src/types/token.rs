@@ -3,7 +3,7 @@ use std::sync::Arc;
 use ethers::prelude::*;
 use serde::Deserialize;
 
-use crate::{env::{self, RuntimeCache}, networks::Network};
+use crate::networks::Network;
 
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
 pub struct Token {

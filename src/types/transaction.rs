@@ -4,7 +4,6 @@ use ethers::types::{Address, Bytes, NameOrAddress, TransactionRequest, H160, H25
 use ethers::utils::keccak256;
 use ethers::utils::rlp::*;
 
-use crate::env;
 use crate::exchanges::types::Protocol;
 
 lazy_static! {

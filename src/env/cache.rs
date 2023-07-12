@@ -17,11 +17,12 @@ use crate::{
 };
 use futures::executor::block_on;
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
-use std::{io::Error, sync::Arc, time::Instant};
+use std::{io::Error, sync::Arc, time::Instant, ops::DerefMut};
 
 abigen!(UniswapQuery, "src/contracts/abi/UniswapQuery.json");
 abigen!(BundleExecutor, "src/contracts/abi/BundleExecutor.json");
 
+#[derive(Clone)]
 pub struct RuntimeCache {
     pub client: RuntimeClient,
     pub uniswap_query: UniswapQueryContract,
