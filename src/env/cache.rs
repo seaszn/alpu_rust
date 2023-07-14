@@ -4,6 +4,7 @@ use ethers::{
     providers::{Http, Middleware, Provider},
     signers::LocalWallet,
 };
+use rayon::prelude::*;
 
 use super::{
     config::RuntimeConfig,
@@ -12,10 +13,11 @@ use super::{
 use crate::{
     exchanges::{get_exchange_markets, get_market_reserves},
     networks::Network,
-    types::{market::Market, ReserveTable},
+    types::{market::Market, ReserveTable, Route, Token},
+    utils::parse::*,
 };
 use futures::executor::block_on;
-use std::{io::Error, sync::Arc, time::Instant};
+use std::{io::Error, sync::Arc};
 
 abigen!(UniswapQuery, "src/contracts/abi/UniswapQuery.json");
 abigen!(BundleExecutor, "src/contracts/abi/BundleExecutor.json");
@@ -26,6 +28,7 @@ pub struct RuntimeCache {
     pub uniswap_query: UniswapQueryContract,
     pub bundle_executor: BundleExecutorContract,
     pub markets: Vec<Arc<Market>>,
+    pub routes: Vec<Route>,
 }
 
 impl RuntimeCache {
@@ -58,6 +61,7 @@ impl RuntimeCache {
                     markets: vec![],
                     uniswap_query,
                     bundle_executor,
+                    routes: vec![],
                 });
             }
             Err(ss) => {
@@ -66,19 +70,46 @@ impl RuntimeCache {
         }
     }
 
-    pub async fn init_markets(&mut self, network: &Network) {
-        let mut unfiltered_markets: Vec<Arc<Market>> = vec![];
+    pub async fn init_markets(&mut self, network: &Network, config: &RuntimeConfig) {
+        _ = self.client.get_block_number().await;
 
-        match get_exchange_markets(network, self).await {
-            Ok(mut result) => {
-                unfiltered_markets.append(&mut result);
+        match get_exchange_markets(network, self, config).await {
+            Ok(result) => {
+                let reserves: ReserveTable = get_market_reserves(&result, &self, config).await;
+                for market in result {
+                    if let Some(reserves) = reserves.get_value(&market.contract_address) {
+                        let min_reserve_0: u128 =
+                            dec_to_u128(&config.min_market_reserves, market.tokens[0].decimals);
+                        let min_reserve_1: u128 =
+                            dec_to_u128(&config.min_market_reserves, market.tokens[1].decimals);
 
-                let inst = Instant::now();
-                let _market_reserves: ReserveTable = get_market_reserves(&unfiltered_markets, &self).await;
-                println!("found {} markets in: {:?}", _market_reserves.len(), inst.elapsed())
+                        if reserves.0.ge(&min_reserve_0) && reserves.1.ge(&min_reserve_1) {
+                            self.markets.push(market);
+                        }
+                    }
+                }
             }
             Err(_) => {}
         };
     }
-    pub async fn calculate_routes(&self) {}
+
+    pub async fn calculate_routes(&mut self, network: &Network, config: &RuntimeConfig) {
+        let base_tokens: Vec<Arc<Token>> = {
+            let mut res = network.tokens.to_vec();
+            res.retain(|x| x.flash_loan_enabled);
+
+            res
+        };
+
+        self.routes = base_tokens
+            .par_iter()
+            .flat_map(|token| {
+                return Route::generate_from_base_token(
+                    self.markets.clone(),
+                    token.clone(),
+                    config.route_restraints,
+                );
+            })
+            .collect::<Vec<Route>>();
+    }
 }

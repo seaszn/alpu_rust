@@ -3,14 +3,16 @@ use dotenv::dotenv;
 use ethers::types::Address;
 use url::Url;
 
+#[derive(Clone)]
 pub struct RuntimeConfig {
     pub chain_id: u32,
     pub rpc_endpoint: Url,
     pub feed_endpoint: Url,
     pub executor_address: Address,
     pub private_key: String,
-    pub route_restraints: (u32, u32),
-    pub min_market_reserves: f32,
+    pub route_restraints: (usize, usize),
+    pub call_chunk_size: usize,
+    pub min_market_reserves: String,
 }
 
 impl RuntimeConfig {
@@ -23,8 +25,9 @@ impl RuntimeConfig {
             feed_endpoint: read_url("FEED_ENDPOINT"),
             executor_address: read_address("BUNDLE_EXECUTOR"),
             private_key: read_string("PRIVATE_KEY"),
-            route_restraints: (read_u32("MIN_ROUTE_LENGTH"), read_u32("MAX_ROUTE_LENGTH")),
-            min_market_reserves: read_f32("MIN_MARKET_RESERVES"),
+            route_restraints: (read_u32("MIN_ROUTE_LENGTH") as usize, read_u32("MAX_ROUTE_LENGTH") as usize),
+            min_market_reserves: read_string("MIN_MARKET_RESERVES"),
+            call_chunk_size: read_u32("CALL_CHUNK_SIZE") as usize
         };
     }
 }
@@ -39,10 +42,6 @@ fn read_url(input: &str) -> Url {
 
 fn read_u32(input: &str) -> u32 {
     return parse::u32(read_string(input));
-}
-
-fn read_f32(input: &str) -> f32 {
-    return parse::f32(read_string(input));
 }
 
 fn read_string(input: &str) -> String {

@@ -17,9 +17,9 @@ abstract contract UniswapV2Factory {
 contract UniswapQuery {
     function getReservesByPairs(
         IUniswapV2Pair[] calldata _pairs
-    ) external view returns (uint256[3][] memory) {
-        uint256[3][] memory result = new uint256[3][](_pairs.length);
-        uint256 i = 0;
+    ) external view returns (uint112[3][] memory) {
+        uint112[3][] memory result = new uint112[3][](_pairs.length);
+        uint32 i = 0;
 
         do {
             unchecked {

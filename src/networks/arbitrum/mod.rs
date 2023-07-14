@@ -5,7 +5,7 @@ use crate::types::Token;
 
 pub const CHAIN_ID: u32 = 42161;
 const NAME: &str = "arbitrum";
-const FLASHLOAN_POOL_ADDRESS_PROVIDER: &str = "0xa97684ead0e402dC232d5A977953DF7ECBaB3CDb";
+const FLASHLOAN_POOL_ADDRESS_PROVIDER: &str = "0x9af2925C7b97b9418c3C0eb759c0E644701b9714";
 const UNISWAP_QUERY_ADDRESS: &str = "0x70FeDD23788d69FDB2B24fcbf2e49eD3b80Ec1F9";
 
 pub fn get_instance() -> Network {

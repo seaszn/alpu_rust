@@ -62,7 +62,7 @@ lazy_static! {
 
 pub async fn trace_transaction(
     tx: &mut Transaction,
-    runtime_cache: &Arc<RuntimeCache>,
+    runtime_cache: Arc<RuntimeCache>,
 ) -> Option<Vec<TransactionLog>> {
     // get the transaction traces
     if let Ok(geth_trace) = runtime_cache

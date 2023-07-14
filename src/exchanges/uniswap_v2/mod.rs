@@ -6,17 +6,15 @@ use std::{
 };
 
 use ethers::prelude::*;
-use rayon::prelude::{
-    IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator, ParallelIterator,
-};
+use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use tokio::task::JoinSet;
 
 use self::types::{uniswap_v2_pair, UniswapV2Factory, UniswapV2FactoryContract};
 
 use super::Exchange;
 use crate::{
-    env::RuntimeCache,
-    handlers::types::swap::BalanceChange,
+    env::{RuntimeCache, RuntimeConfig},
+    handlers::types::BalanceChange,
     networks::Network,
     types::{market::Market, ReserveTable, Reserves, TransactionLog},
 };
@@ -28,12 +26,14 @@ pub async fn get_markets(
     exchange: &Exchange,
     network: &Network,
     runtime_cache: &RuntimeCache,
+    runtime_config: &RuntimeConfig,
 ) -> Result<Vec<Arc<Market>>, Error> {
     let factory_contract: UniswapV2FactoryContract =
         UniswapV2Factory::new(exchange.factory_address, runtime_cache.client.clone());
 
     if let Ok(market_count) = factory_contract.all_pairs_length().await {
-        let batch_size: U256 = U256::from_dec_str("100").unwrap();
+        let batch_size: U256 =
+            U256::from_dec_str(&runtime_config.call_chunk_size.to_string()).unwrap();
         let batch_count: U256 = market_count / batch_size + 1;
         let exchange_fee: i32 = exchange.base_fee;
         let exchange_protocol = exchange.protocol;
@@ -56,17 +56,13 @@ pub async fn get_markets(
 
                 if response.is_ok() {
                     for element in response.unwrap() {
-                        let token0 = tokens
-                            .par_iter()
-                            .find_first(|s| s.contract_address.0 == element[0].0);
-                        let token1 = tokens
-                            .par_iter()
-                            .find_first(|s| s.contract_address.0 == element[1].0);
+                        let token_0 = tokens.iter().find(|s| s.contract_address.0 == element[0].0);
+                        let token_1 = tokens.iter().find(|s| s.contract_address.0 == element[1].0);
 
-                        if token0.is_some() && token1.is_some() {
+                        if token_0.is_some() && token_1.is_some() {
                             batch_markets.push(Market {
                                 contract_address: element[2],
-                                tokens: [token0.unwrap().clone(), token1.unwrap().clone()],
+                                tokens: [token_0.unwrap().clone(), token_1.unwrap().clone()],
                                 fee: exchange_fee,
                                 stable: false,
                                 protocol: exchange_protocol,
@@ -80,9 +76,7 @@ pub async fn get_markets(
         }
 
         let mut exchange_markets: Vec<Arc<Market>> = vec![];
-        while let Some(res) = set.join_next().await {
-            let response = res.unwrap();
-
+        while let Some(Ok(response)) = set.join_next().await {
             for market in response {
                 exchange_markets.push(Arc::new(market));
             }
@@ -141,37 +135,52 @@ pub fn parse_balance_changes(logs: &Vec<TransactionLog>) -> Vec<BalanceChange> {
 }
 
 #[inline(always)]
-pub async fn get_market_reserves(markets: Vec<H160>, runtime_cache: &RuntimeCache) -> ReserveTable {
-    let mut join_set: JoinSet<Vec<Reserves>> = JoinSet::new();
+pub async fn get_market_reserves(
+    markets: Vec<H160>,
+    runtime_cache: &RuntimeCache,
+    runtime_config: &RuntimeConfig,
+) -> ReserveTable {
+    let mut join_set: JoinSet<(Vec<H160>, Vec<Reserves>)> = JoinSet::new();
     let cache = Arc::downgrade(&runtime_cache.uniswap_query).clone();
 
-    for market_addressess in &markets.clone().into_iter().chunks(52) {
+    for market_addressess in &markets
+        .clone()
+        .into_iter()
+        .chunks(runtime_config.call_chunk_size)
+    {
         let addressess: Vec<H160> = market_addressess.collect();
         let uniswap_query = unsafe { &*cache.as_ptr() };
 
         join_set.spawn(async move {
-            match uniswap_query.get_reserves_by_pairs(addressess).await {
+            match uniswap_query
+                .get_reserves_by_pairs(addressess.clone())
+                .await
+            {
                 Ok(response) => {
-                    return response
-                        .into_iter()
-                        .map(|element: [U256; 3]| (element[0], element[1]))
-                        .collect::<Vec<Reserves>>();
+                    return (
+                        addressess,
+                        response
+                            .into_iter()
+                            .map(|element: [u128; 3]| (element[0], element[1]))
+                            .collect::<Vec<Reserves>>(),
+                    );
                 }
                 Err(_) => {
-                    return vec![];
+                    return (vec![], vec![]);
                 }
             }
         });
     }
 
-    let mut map: ReserveTable = ReserveTable::new();
+    let mut res: ReserveTable = ReserveTable::new();
     while let Some(Ok(result)) = join_set.join_next().await {
-        if result.len() > 0 {
-            for i in 0..result.len() {
-                map.add(markets[i].0, result[i])
-            }
+        let market_addressess = result.0;
+        let market_reserves = result.1;
+
+        for i in 0..market_addressess.len() {
+            res.add(&market_addressess[i], market_reserves[i]);
         }
     }
 
-    return map;
+    return res.clone();
 }
