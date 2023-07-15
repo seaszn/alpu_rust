@@ -1,6 +1,7 @@
-use ethers::types::H160;
+use ethers::prelude::*;
+use itertools::Itertools;
 
-pub type Reserves = (u128, u128);
+pub type Reserves = (U256, U256);
 
 #[derive(Clone)]
 pub struct ReserveTable {
@@ -40,6 +41,7 @@ impl ReserveTable {
         return self.internal.iter().any(|x| x.0.eq(&key.0));
     }
 
+    #[doc = r"Get value at key"]
     pub fn get_value(&self, key: &H160) -> Option<Reserves> {
         if let Some(element) = self.internal.iter().find(|x| x.0.eq(&key.0)) {
             return Some(element.1);
@@ -48,7 +50,16 @@ impl ReserveTable {
         return None;
     }
 
+    pub fn keys(&self) -> Vec<H160> {
+        return self.internal.iter().map(|x| H160::from(x.0)).collect();
+    }
+
+    #[doc = r"The amount of reserves in the table"]
     pub fn len(&self) -> usize {
         return self.internal.len();
+    }
+
+    pub fn to_vec(&self) -> Vec<(H160, Reserves)>{
+        return self.internal.iter().map(|x| (H160::from(x.0), x.1)).collect_vec();
     }
 }

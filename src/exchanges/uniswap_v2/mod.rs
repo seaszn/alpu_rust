@@ -4,7 +4,6 @@ use std::{
     ops::Mul,
     sync::*,
 };
-
 use ethers::prelude::*;
 use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use tokio::task::JoinSet;
@@ -107,10 +106,10 @@ pub fn parse_balance_changes(logs: &Vec<TransactionLog>) -> Vec<BalanceChange> {
                     for swap in filters {
                         swap_events.push(BalanceChange {
                             address: transaction_log.address,
-                            amount_0_in: swap.amount_0_in,
-                            amount_1_in: swap.amount_1_in,
-                            amount_0_out: swap.amount_0_out,
-                            amount_1_out: swap.amount_1_out,
+                            amount_0_in: swap.amount_0_in.as_u128(),
+                            amount_1_in: swap.amount_1_in.as_u128(),
+                            amount_0_out: swap.amount_0_out.as_u128(),
+                            amount_1_out: swap.amount_1_out.as_u128(),
                         });
                     }
 
@@ -161,7 +160,7 @@ pub async fn get_market_reserves(
                         addressess,
                         response
                             .into_iter()
-                            .map(|element: [u128; 3]| (element[0], element[1]))
+                            .map(|element: [u128; 3]| (U256::from(element[0]), U256::from(element[1])))
                             .collect::<Vec<Reserves>>(),
                     );
                 }

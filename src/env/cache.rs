@@ -75,13 +75,13 @@ impl RuntimeCache {
 
         match get_exchange_markets(network, self, config).await {
             Ok(result) => {
-                let reserves: ReserveTable = get_market_reserves(&result, &self, config).await;
+                let reserves: ReserveTable = get_market_reserves(&result, &self, &config).await;
                 for market in result {
                     if let Some(reserves) = reserves.get_value(&market.contract_address) {
-                        let min_reserve_0: u128 =
-                            dec_to_u128(&config.min_market_reserves, market.tokens[0].decimals);
-                        let min_reserve_1: u128 =
-                            dec_to_u128(&config.min_market_reserves, market.tokens[1].decimals);
+                        let min_reserve_0=
+                            dec_to_u256(&config.min_market_reserves, market.tokens[0].decimals);
+                        let min_reserve_1 =
+                            dec_to_u256(&config.min_market_reserves, market.tokens[1].decimals);
 
                         if reserves.0.ge(&min_reserve_0) && reserves.1.ge(&min_reserve_1) {
                             self.markets.push(market);

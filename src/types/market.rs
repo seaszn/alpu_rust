@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use ethers::types::{Address, H160};
+use ethers::prelude::*;
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 
 use crate::{env::RuntimeCache, exchanges::types::Protocol};
@@ -17,7 +17,7 @@ pub struct Market {
 }
 
 impl Market {
-    pub fn from_address(address: &H160, runtime_cache: &Arc<RuntimeCache>) -> Option<Arc<Market>> {
+    pub fn from_address(address: &H160, runtime_cache: &RuntimeCache) -> Option<Arc<Market>> {
         for market in &runtime_cache.markets {
             if market.contract_address.0 == address.0 {
                 return Some(market.clone());
@@ -29,5 +29,9 @@ impl Market {
 
     pub fn get_market_addressess(markets: &Vec<Arc<Market>>) -> Vec<H160> {
         return markets.par_iter().map(|x| x.contract_address).collect();
+    }
+
+    pub fn get_fee_data(&self) -> (U256, U256) {
+        return (U256::from(10000u128 - self.fee as u128), U256::from(10000u128));
     }
 }

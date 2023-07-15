@@ -1,51 +1,67 @@
+use std::ops::{Add, Sub};
 use std::sync::Arc;
 
 use ethers::providers::Middleware;
-use ethers::types::H256;
 use futures::{SinkExt, StreamExt};
 
 use tokio::sync::mpsc::Sender;
+use ethers::prelude::*;
 use tokio::task::JoinSet;
 use websocket_lite::{ClientBuilder, Message, Opcode};
 
 use crate::env::{RuntimeCache, RuntimeConfig};
+use crate::exchanges::get_market_reserves;
 use crate::handlers::types::{BalanceChange, RelayMessage};
+use crate::types::ReserveTable;
 use crate::{exchanges, log_tracer};
 
+#[inline]
 pub async fn init(
-    sender: Sender<Vec<BalanceChange>>,
+    sender: Sender<ReserveTable>,
     runtime_config: Arc<RuntimeConfig>,
     runtime_cache: Arc<RuntimeCache>,
 ) -> websocket_lite::Result<()> {
     let builder: ClientBuilder = ClientBuilder::from_url(runtime_config.feed_endpoint.clone());
     let mut stream = builder.async_connect().await?;
-
+    
     while let Some(msg) = stream.next().await {
         if let Ok(incomming) = msg {
             match incomming.opcode() {
-                Opcode::Text => handle_text_message(incomming, &sender, &runtime_cache).await,
+                Opcode::Text => {
+                    handle_text_message(incomming, &sender, &runtime_cache, &runtime_config).await
+                }
                 Opcode::Ping => stream.send(Message::pong(incomming.into_data())).await?,
                 Opcode::Close => break,
                 Opcode::Pong | Opcode::Binary => {}
             }
         }
     }
-
+    
     Ok(())
 }
 
 async fn handle_text_message(
     incomming: Message,
-    sender: &Sender<Vec<BalanceChange>>,
+    sender: &Sender<ReserveTable>,
     runtime_cache: &Arc<RuntimeCache>,
+    runtime_config: &Arc<RuntimeConfig>,
 ) {
     if let Some(message_text) = incomming.as_text() {
         if let Some(relay_message) = RelayMessage::from_json(message_text) {
             let transaction_hashes: Vec<H256> = relay_message.decode();
 
             if transaction_hashes.len() > 0 {
-                // let inst = Instant::now();
-                let mut call_set: JoinSet<Vec<BalanceChange>> = JoinSet::new();
+                let mut call_set: JoinSet<(Option<Vec<BalanceChange>>, Option<ReserveTable>)> =
+                    JoinSet::new();
+
+                let cache: Arc<RuntimeCache> = runtime_cache.clone();
+                let config = runtime_config.clone();
+                call_set.spawn(async move {
+                    return (
+                        None,
+                        Some(get_market_reserves(&cache.markets, &cache, &config).await),
+                    );
+                });
 
                 for tx_hash in transaction_hashes {
                     let cache: Arc<RuntimeCache> = runtime_cache.clone();
@@ -59,31 +75,46 @@ async fn handle_text_message(
                                     log_tracer::trace_transaction(&mut transaction, cache).await
                                 {
                                     if transaction_logs.len() > 0 {
-                                        return exchanges::parse_balance_changes(transaction_logs);
+                                        return (
+                                            Some(exchanges::parse_balance_changes(
+                                                transaction_logs,
+                                            )),
+                                            None,
+                                        );
                                     }
                                 }
                             }
                         }
 
-                        return vec![];
+                        return (None, None);
                     });
                 }
 
                 // // Get all the transaction logs of the
+                let mut market_reserves: Option<ReserveTable> = None;
                 let mut balance_changes: Vec<BalanceChange> = vec![];
-                while let Some(Ok(mut result)) = call_set.join_next().await {
-                    if result.len() > 0 {
-                        balance_changes.append(&mut result)
+                while let Some(Ok(result)) = call_set.join_next().await {
+                    if let Some(mut changes) = result.0 {
+                        if changes.len() > 0 {
+                            balance_changes.append(&mut changes)
+                        }
+                    } else if let Some(reserves) = result.1 {
+                        market_reserves = Some(reserves);
                     }
                 }
 
-                if balance_changes.len() > 0 {
-                    // println!(
-                    //     "found {} balance changes in {:#?}",
-                    //     balance_changes.len(),
-                    //     inst.elapsed()
-                    // );
-                    _ = sender.send(balance_changes).await;
+                if let Some(mut reserves) = market_reserves {
+                    if balance_changes.len() > 0 && reserves.len() > 0 {
+                        for change in balance_changes {
+                            reserves.update_at(&change.address, |x| {
+                                (
+                                    x.0.add(change.amount_0_in).sub(change.amount_0_out),
+                                    x.1.add(change.amount_1_in).sub(change.amount_1_out),
+                                )
+                            });
+                        }
+                        _ = sender.send(reserves).await;
+                    }
                 }
             }
         }

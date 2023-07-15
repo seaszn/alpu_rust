@@ -1,4 +1,4 @@
-use ethers::types::*;
+use ethers::{prelude::*};
 use url::Url;
 
 pub fn url(input: String) -> Url {
@@ -39,18 +39,7 @@ pub fn address(input: String) -> Address {
 }
 
 pub fn dec_to_u256(dec: &str, unit: u32) -> U256 {
-    let dec_secondary_count: u32 = dec.split('.').collect::<Vec<&str>>()[1].len() as u32;
-
-    if dec_secondary_count > unit {
-        panic!("decimals overflow unit type");
-    }
-
-    let mut tot = dec.replace(".", "").to_owned();
-    for _ in 0..unit - dec_secondary_count {
-        tot.push_str("0");
-    }
-
-    return U256::from_dec_str(&tot).unwrap();
+    return U256::from(dec_to_u128(dec, unit));
 }
 
 pub fn dec_to_u128(dec: &str, unit: u32) -> u128 {

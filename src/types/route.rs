@@ -2,13 +2,16 @@ use std::sync::Arc;
 
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 
-use super::{market::Market, Token};
+use crate::utils::{append_one, filter_all};
+
+use super::{market::Market, ReserveTable, Reserves, Token};
 
 #[derive(Debug, Clone)]
 pub struct Route {
     pub markets: Vec<Arc<Market>>,
     pub base_token: Arc<Token>,
 }
+pub struct RouteResult {}
 
 impl Route {
     pub fn generate_from_base_token(
@@ -23,6 +26,48 @@ impl Route {
             route_restraints,
             vec![],
         );
+    }
+
+    pub fn calculate_result(&self, reserve_table: &ReserveTable) -> RouteResult {
+        if let Some(_route_liquidity) = self.calculate_circ_liquidity(reserve_table) {
+
+        }
+
+        return RouteResult {};
+    }
+
+    fn calculate_circ_liquidity(&self, reserves: &ReserveTable) -> Option<Reserves> {
+        if let Some(first_reserve) = reserves.get_value(&self.markets[0].contract_address) {
+            let mut token_in = &self.base_token;
+
+            let mut res: Reserves = first_reserve;
+            if self.markets[0].tokens[0].ne(token_in) {
+                res = (first_reserve.1, first_reserve.0)
+            }
+
+            for market in self.markets.split_first().unwrap().1 {
+                let (fee_multiplier, mul) = market.get_fee_data();
+                let market_reserve = &reserves.get_value(&market.contract_address).unwrap();
+
+                if token_in.eq(&market.tokens[0]) {
+                    let delta = market_reserve.0 + ((fee_multiplier * res.1) / mul);
+                    res.0 = &(res.0 * market_reserve.0) / delta;
+                    res.1 = &(fee_multiplier * res.1 * market_reserve.1 / mul) / delta;
+
+                    token_in = &market.tokens[1];
+                } else {
+                    let delta = market_reserve.1 + ((fee_multiplier * res.1) / mul);
+                    res.0 = &(res.0 * market_reserve.1) / delta;
+                    res.1 = &(fee_multiplier * res.1 * market_reserve.0 / mul) / delta;
+
+                    token_in = &market.tokens[0];
+                }
+            }
+
+            return Some(res);
+        }
+
+        return None;
     }
 }
 
@@ -81,29 +126,4 @@ fn get_pairable_markets(token_in: Arc<Token>, markets: Vec<Arc<Market>>) -> Vec<
     return filter_all(&markets, |x| {
         token_in.eq(&x.tokens[0]) || token_in.eq(&x.tokens[1])
     });
-}
-
-fn append_one<T>(s: &Vec<T>, ele: &T) -> Vec<T>
-where
-    T: Clone,
-{
-    let mut res = s.clone();
-    res.push(ele.clone());
-
-    return res.to_vec();
-}
-
-fn filter_all<F, T>(source: &Vec<T>, mut predicate: F) -> Vec<T>
-where
-    F: FnMut(&T) -> bool,
-    T: Clone,
-{
-    let mut res: Vec<T> = vec![];
-    for ele in source {
-        if predicate(ele) {
-            res.push(ele.clone());
-        }
-    }
-
-    return res;
 }

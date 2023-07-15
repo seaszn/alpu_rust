@@ -13,3 +13,4 @@ pub use self::transaction::TransactionLog;
 pub use self::reserve_table::ReserveTable;
 pub use self::reserve_table::Reserves;
 pub use self::route::Route;
+pub use self::route::RouteResult;
