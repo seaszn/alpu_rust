@@ -1,12 +1,8 @@
 use std::{sync::Arc, time::Instant};
 
-use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 
-use crate::{
-    env::*,
-    types::{ReserveTable, Route, RouteResult},
-};
+use crate::{env::*, types::ReserveTable};
 
 use super::NetworkHandler;
 mod data_feed;
@@ -26,12 +22,9 @@ impl NetworkHandler for ArbitrumHandler {
 
         while let Some(reserve_table) = receiver.recv().await {
             if reserve_table.len() > 0 {
-
                 let inst = Instant::now();
 
-                for route in &runtime_cache.routes{
-
-                }
+                for _route in &runtime_cache.routes {}
                 // let _route_results: Vec<RouteResult> = runtime_cache
                 //     .routes
                 //     .iter()
