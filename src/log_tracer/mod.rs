@@ -1,4 +1,4 @@
-use std::{ops::Sub, sync::Arc};
+use std::ops::Sub;
 
 use crate::{
     env::RuntimeCache,
@@ -62,7 +62,7 @@ lazy_static! {
 
 pub async fn trace_transaction(
     tx: &mut Transaction,
-    runtime_cache: Arc<RuntimeCache>,
+    runtime_cache: &'static RuntimeCache,
 ) -> Option<Vec<TransactionLog>> {
     // get the transaction traces
     if let Ok(geth_trace) = runtime_cache

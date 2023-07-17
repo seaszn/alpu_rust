@@ -1,11 +1,10 @@
 use std::ops::{Add, Sub};
-use std::sync::Arc;
 
 use ethers::providers::Middleware;
 use futures::{SinkExt, StreamExt};
 
-use tokio::sync::mpsc::Sender;
 use ethers::prelude::*;
+use tokio::sync::mpsc::Sender;
 use tokio::task::JoinSet;
 use websocket_lite::{ClientBuilder, Message, Opcode};
 
@@ -18,17 +17,17 @@ use crate::{exchanges, log_tracer};
 #[inline]
 pub async fn init(
     sender: Sender<ReserveTable>,
-    runtime_config: Arc<RuntimeConfig>,
-    runtime_cache: Arc<RuntimeCache>,
+    runtime_config: &'static RuntimeConfig,
+    runtime_cache: &'static RuntimeCache,
 ) -> websocket_lite::Result<()> {
     let builder: ClientBuilder = ClientBuilder::from_url(runtime_config.feed_endpoint.clone());
     let mut stream = builder.async_connect().await?;
-    
+
     while let Some(msg) = stream.next().await {
         if let Ok(incomming) = msg {
             match incomming.opcode() {
                 Opcode::Text => {
-                    handle_text_message(incomming, &sender, &runtime_cache, &runtime_config).await
+                    handle_text_message(incomming, &sender, &runtime_config, &runtime_cache).await
                 }
                 Opcode::Ping => stream.send(Message::pong(incomming.into_data())).await?,
                 Opcode::Close => break,
@@ -36,15 +35,15 @@ pub async fn init(
             }
         }
     }
-    
+
     Ok(())
 }
 
 async fn handle_text_message(
     incomming: Message,
     sender: &Sender<ReserveTable>,
-    runtime_cache: &Arc<RuntimeCache>,
-    runtime_config: &Arc<RuntimeConfig>,
+    runtime_config: &'static RuntimeConfig,
+    runtime_cache: &'static RuntimeCache,
 ) {
     if let Some(message_text) = incomming.as_text() {
         if let Some(relay_message) = RelayMessage::from_json(message_text) {
@@ -54,25 +53,29 @@ async fn handle_text_message(
                 let mut call_set: JoinSet<(Option<Vec<BalanceChange>>, Option<ReserveTable>)> =
                     JoinSet::new();
 
-                let cache: Arc<RuntimeCache> = runtime_cache.clone();
-                let config = runtime_config.clone();
                 call_set.spawn(async move {
                     return (
                         None,
-                        Some(get_market_reserves(&cache.markets, &cache, &config).await),
+                        Some(
+                            get_market_reserves(
+                                &runtime_cache.markets,
+                                runtime_cache,
+                                runtime_config,
+                            )
+                            .await,
+                        ),
                     );
                 });
 
                 for tx_hash in transaction_hashes {
-                    let cache: Arc<RuntimeCache> = runtime_cache.clone();
-
                     call_set.spawn(async move {
                         if let Ok(Some(mut transaction)) =
-                            cache.client.get_transaction(tx_hash).await
+                            runtime_cache.client.get_transaction(tx_hash).await
                         {
                             if transaction.to.is_some() {
                                 if let Some(transaction_logs) =
-                                    log_tracer::trace_transaction(&mut transaction, cache).await
+                                    log_tracer::trace_transaction(&mut transaction, runtime_cache)
+                                        .await
                                 {
                                     if transaction_logs.len() > 0 {
                                         return (

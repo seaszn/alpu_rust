@@ -1,4 +1,4 @@
-use std::{io::Error, sync::Arc, vec};
+use std::{io::Error, vec};
 
 use ethers::types::H160;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
@@ -18,17 +18,16 @@ pub mod types;
 mod uniswap_v2;
 
 pub async fn get_exchange_markets(
-    network: &Network,
+    network: &'static Network,
     runtime_cache: &RuntimeCache,
-    runtime_config: &RuntimeConfig,
-) -> Result<Vec<Arc<Market>>, Error> {
-    let mut result: Vec<Arc<Market>> = vec![];
+    runtime_config: &'static RuntimeConfig,
+) -> Result<Vec<Market>, Error> {
+    let mut result: Vec<Market> = vec![];
 
     for exchange in &network.exchanges {
         if exchange.protocol == Protocol::UniswapV2 {
             if let Ok(mut response) =
-                uniswap_v2::get_markets(exchange, network.clone(), runtime_cache, runtime_config)
-                    .await
+                uniswap_v2::get_markets(exchange, network, runtime_cache, runtime_config).await
             {
                 result.append(&mut response);
             };
@@ -56,9 +55,9 @@ pub fn parse_balance_changes(logs: Vec<TransactionLog>) -> Vec<BalanceChange> {
 }
 
 pub async fn get_market_reserves(
-    markets: &Vec<Arc<Market>>,
+    markets: &Vec<Market>,
     runtime_cache: &RuntimeCache,
-    runtime_config: &RuntimeConfig,
+    runtime_config: &'static RuntimeConfig,
 ) -> ReserveTable {
     let filtered_markets = markets
         .iter()

@@ -5,8 +5,7 @@ use self::{arbitrum::ArbitrumHandler, types::NetworkHandler};
 mod arbitrum;
 mod data_feed;
 pub mod types;
-
-pub struct Handler {}
+pub struct Handler;
 
 impl Handler {
     pub async fn new<'a>(chain_id: u32) -> Option<&'a dyn NetworkHandler> {

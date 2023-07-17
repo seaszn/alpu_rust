@@ -1,5 +1,3 @@
-use std::{sync::Arc, sync::Weak};
-
 use ethers::prelude::*;
 use serde::Deserialize;
 
@@ -15,28 +13,24 @@ pub struct Token {
 impl Token {
     pub fn from_address(
         address: &NameOrAddress,
-        runtime_network: &Arc<Network>,
-    ) -> Option<Arc<Token>> {
-        for market in &runtime_network.tokens {
-            if market.contract_address.0 == address.as_address().unwrap().0 {
-                return Some(market.clone());
+        runtime_network: &'static Network,
+    ) -> Option<&'static Token> {
+        for token in &runtime_network.tokens {
+            if token.contract_address.0 == address.as_address().unwrap().0 {
+                return Some(&token);
             }
         }
 
         return None;
     }
-
-    pub fn eq_unsafe(&self, other: &Weak<Self>) -> bool {
-        return self.eq(&unsafe { *other.as_ptr() });
-    }
 }
 
 impl PartialEq for Token {
     fn eq(&self, other: &Self) -> bool {
-        return self.contract_address.eq(&other.contract_address);
+        return self.contract_address.0.eq(&other.contract_address.0);
     }
 
     fn ne(&self, other: &Self) -> bool {
-        return self.contract_address.ne(&other.contract_address);
+        return self.contract_address.0.ne(&other.contract_address.0);
     }
 }

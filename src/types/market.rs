@@ -10,17 +10,17 @@ use super::Token;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Market {
     pub contract_address: Address,
-    pub tokens: [Arc<Token>; 2],
+    pub tokens: [&'static Token; 2],
     pub fee: i32,
     pub stable: bool,
     pub protocol: Protocol,
 }
 
 impl Market {
-    pub fn from_address(address: &H160, runtime_cache: &RuntimeCache) -> Option<Arc<Market>> {
+    pub fn from_address(address: &H160, runtime_cache: &'static RuntimeCache) -> Option<& 'static Market> {
         for market in &runtime_cache.markets {
             if market.contract_address.0 == address.0 {
-                return Some(market.clone());
+                return Some(market);
             }
         }
 

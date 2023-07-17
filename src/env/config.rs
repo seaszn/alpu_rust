@@ -11,7 +11,8 @@ pub struct RuntimeConfig {
     pub executor_address: Address,
     pub private_key: String,
     pub route_restraints: (usize, usize),
-    pub call_chunk_size: usize,
+    pub small_chunk_size: usize,
+    pub large_chunk_size: usize,
     pub min_market_reserves: String,
 }
 
@@ -27,7 +28,8 @@ impl RuntimeConfig {
             private_key: read_string("PRIVATE_KEY"),
             route_restraints: (read_u32("MIN_ROUTE_LENGTH") as usize, read_u32("MAX_ROUTE_LENGTH") as usize),
             min_market_reserves: read_string("MIN_MARKET_RESERVES"),
-            call_chunk_size: read_u32("CALL_CHUNK_SIZE") as usize
+            small_chunk_size: read_u32("SMALL_CHUNK_SIZE") as usize,
+            large_chunk_size: read_u32("LARGE_CHUNK_SIZE") as usize
         };
     }
 }

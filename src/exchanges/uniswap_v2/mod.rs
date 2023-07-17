@@ -1,11 +1,10 @@
+use ethers::prelude::*;
 use itertools::Itertools;
+use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use std::{
     io::{Error, ErrorKind},
-    ops::Mul,
     sync::*,
 };
-use ethers::prelude::*;
-use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use tokio::task::JoinSet;
 
 use self::types::{uniswap_v2_pair, UniswapV2Factory, UniswapV2FactoryContract};
@@ -22,72 +21,62 @@ mod types;
 
 #[inline(always)]
 pub async fn get_markets(
-    exchange: &Exchange,
-    network: &Network,
+    exchange: &'static Exchange,
+    network: &'static Network,
     runtime_cache: &RuntimeCache,
-    runtime_config: &RuntimeConfig,
-) -> Result<Vec<Arc<Market>>, Error> {
+    runtime_config: &'static RuntimeConfig,
+) -> Result<Vec<Market>, Error> {
     let factory_contract: UniswapV2FactoryContract =
         UniswapV2Factory::new(exchange.factory_address, runtime_cache.client.clone());
+    let mut result: Vec<Market> = vec![];
 
     if let Ok(market_count) = factory_contract.all_pairs_length().await {
-        let batch_size: U256 =
-            U256::from_dec_str(&runtime_config.call_chunk_size.to_string()).unwrap();
-        let batch_count: U256 = market_count / batch_size + 1;
-        let exchange_fee: i32 = exchange.base_fee;
-        let exchange_protocol = exchange.protocol;
+        let total_market_count: u128 = market_count.as_u128();
 
-        let mut set: JoinSet<Vec<Market>> = JoinSet::new();
+        for chunk in &(0..total_market_count)
+            .into_iter()
+            .chunks(runtime_config.large_chunk_size)
+        {
+            let (start, stop) = {
+                let chunk = chunk.collect_vec();
+                (U256::from(chunk[0]), U256::from(*chunk.last().unwrap()))
+            };
 
-        for i in 0..batch_count.as_u32() {
-            let query = runtime_cache.uniswap_query.clone();
-            let factory_address = exchange.factory_address;
-            let index = batch_size.mul(i);
-            let network = network.clone();
-            let tokens: Arc<Vec<Arc<crate::types::Token>>> = Arc::from(network.tokens.clone());
-
-            set.spawn(async move {
-                let response: Result<Vec<[H160; 3]>, _> = query
-                    .get_uniswap_v2_markets(factory_address, index, index + batch_size)
-                    .await;
-
-                let mut batch_markets: Vec<Market> = vec![];
-
-                if response.is_ok() {
-                    for element in response.unwrap() {
-                        let token_0 = tokens.iter().find(|s| s.contract_address.0 == element[0].0);
-                        let token_1 = tokens.iter().find(|s| s.contract_address.0 == element[1].0);
+            match runtime_cache
+                .uniswap_query
+                .get_uniswap_v2_markets(exchange.factory_address, start, stop)
+                .await
+            {
+                Ok(response) => {
+                    for element in response {
+                        let token_0 = network
+                            .tokens
+                            .iter()
+                            .find(|s| s.contract_address.0 == element[0].0);
+                        let token_1 = network
+                            .tokens
+                            .iter()
+                            .find(|s| s.contract_address.0 == element[1].0);
 
                         if token_0.is_some() && token_1.is_some() {
-                            batch_markets.push(Market {
+                            result.push(Market {
                                 contract_address: element[2],
-                                tokens: [token_0.unwrap().clone(), token_1.unwrap().clone()],
-                                fee: exchange_fee,
+                                tokens: [token_0.unwrap(), token_1.unwrap()],
+                                fee: exchange.base_fee,
                                 stable: false,
-                                protocol: exchange_protocol,
+                                protocol: exchange.protocol,
                             });
                         }
                     }
                 }
-
-                return batch_markets;
-            });
-        }
-
-        let mut exchange_markets: Vec<Arc<Market>> = vec![];
-        while let Some(Ok(response)) = set.join_next().await {
-            for market in response {
-                exchange_markets.push(Arc::new(market));
+                Err(err) => {
+                    return Err(Error::new(ErrorKind::ConnectionRefused, err));
+                }
             }
         }
-
-        return Ok(exchange_markets);
     }
 
-    return Err(Error::new(
-        ErrorKind::ConnectionRefused,
-        "Failed to connect to network",
-    ));
+    return Ok(result);
 }
 
 #[inline(always)]
@@ -145,7 +134,7 @@ pub async fn get_market_reserves(
     for market_addressess in &markets
         .clone()
         .into_iter()
-        .chunks(runtime_config.call_chunk_size)
+        .chunks(runtime_config.small_chunk_size)
     {
         let addressess: Vec<H160> = market_addressess.collect();
         let uniswap_query = unsafe { &*cache.as_ptr() };
@@ -160,7 +149,9 @@ pub async fn get_market_reserves(
                         addressess,
                         response
                             .into_iter()
-                            .map(|element: [u128; 3]| (U256::from(element[0]), U256::from(element[1])))
+                            .map(|element: [u128; 3]| {
+                                (U256::from(element[0]), U256::from(element[1]))
+                            })
                             .collect::<Vec<Reserves>>(),
                     );
                 }

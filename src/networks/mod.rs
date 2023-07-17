@@ -1,6 +1,5 @@
 mod arbitrum;
 use crate::utils;
-use std::sync::Arc;
 
 use crate::{exchanges::types::Exchange, types::Token};
 use ethers::prelude::*;
@@ -11,18 +10,16 @@ pub struct Network {
     pub chain_id: u32,
     pub name: String,
     pub exchanges: Vec<Exchange>,
-    pub tokens: Vec<Arc<Token>>,
-    pub lower_token_addressess: Vec<String>,
+    pub tokens: Vec<Token>,
     pub flashloan_pool_address_provider: Address,
     pub uniswap_query_address: Address,
 }
 
-impl Network{
-    pub fn from_chain_id(chain_id: &u32) -> Network{
+impl Network {
+    pub fn from_chain_id(chain_id: &u32) -> Network {
         if *chain_id == arbitrum::CHAIN_ID {
             return arbitrum::get_instance();
-        }
-        else {
+        } else {
             panic!("NETWORK NOT FOUND");
         }
     }
@@ -35,12 +32,10 @@ fn load_exchanges_from_file(network_name: &str) -> Vec<Exchange> {
     ));
 }
 
-fn load_tokens_from_file(network_name: &str) -> Vec<Arc<Token>> {
+fn load_tokens_from_file(network_name: &str) -> Vec<Token> {
     return utils::json::deserialize_token_file(format!(
         "src/networks/{}/_tokens.json",
         network_name
-    ))
-    .iter()
-    .map(|t: &Token| Arc::new(*t))
-    .collect();
+    ));
+    // .collect();
 }

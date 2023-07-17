@@ -2,12 +2,12 @@ pub mod logger;
 pub mod json;
 pub mod parse;
 
-pub fn append_one<T>(s: &Vec<T>, ele: &T) -> Vec<T>
+pub fn append_one<T>(s: Vec<&'static T>, ele: &'static T) -> Vec<&'static T>
 where
     T: Clone,
 {
     let mut res = s.clone();
-    res.push(ele.clone());
+    res.push(ele);
 
     return res.to_vec();
 }

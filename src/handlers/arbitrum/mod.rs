@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Instant};
+use std::time::Instant;
 
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 
@@ -10,14 +10,15 @@ pub struct ArbitrumHandler;
 
 #[async_trait::async_trait]
 impl NetworkHandler for ArbitrumHandler {
-    async fn init(&self, runtime_config: Arc<RuntimeConfig>, runtime_cache: Arc<RuntimeCache>) {
+    async fn init(
+        &self,
+        runtime_config: &'static RuntimeConfig,
+        runtime_cache: &'static RuntimeCache,
+    ) {
         let (sender, mut receiver): (Sender<ReserveTable>, Receiver<_>) = channel(32);
 
-        // start the data_feed
-        let thread_config = runtime_config.clone();
-        let thread_cache = runtime_cache.clone();
         _ = tokio::spawn(async move {
-            _ = data_feed::init(sender, thread_config, thread_cache).await;
+            _ = data_feed::init(sender, runtime_config, runtime_cache).await;
         });
 
         while let Some(reserve_table) = receiver.recv().await {
