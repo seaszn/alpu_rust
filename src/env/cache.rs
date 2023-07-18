@@ -13,7 +13,7 @@ use super::{
 use crate::{
     exchanges::get_exchange_markets,
     networks::Network,
-    types::{market::Market, Reserves, Route},
+    types::{market::Market, OrganizedList, Reserves, Route},
     utils::parse::*,
 };
 use futures::executor::block_on;
@@ -24,10 +24,10 @@ abigen!(BundleExecutor, "src/contracts/abi/BundleExecutor.json");
 
 #[derive(Clone)]
 pub struct RuntimeCache {
-    pub client: RuntimeClient,
+    pub client: Arc<RuntimeClient>,
     pub uniswap_query: UniswapQueryContract,
     pub bundle_executor: BundleExecutorContract,
-    pub markets: Vec<Market>,
+    pub markets: OrganizedList<Market>,
     pub routes: Vec<Route>,
 }
 
@@ -44,16 +44,13 @@ impl RuntimeCache {
             .parse::<LocalWallet>()
             .expect("PRIVATE_KEY is not a valid private key");
 
-        let client: RuntimeClient =
-            Arc::new(SignerMiddleware::new(provider.clone(), wallet.clone()));
+        let client: Arc<RuntimeClient> = Arc::new(SignerMiddleware::new(provider.clone(), wallet.clone()));
 
-        let uniswap_query: UniswapQueryContract = Arc::new(UniswapQuery::new(
-            network.uniswap_query_address,
-            client.clone(),
-        ));
+        let uniswap_query: UniswapQueryContract =
+            UniswapQuery::new(network.uniswap_query_address, client.clone());
 
         let bundle_executor: BundleExecutorContract =
-            Arc::new(BundleExecutor::new(config.executor_address, client.clone()));
+            BundleExecutor::new(config.executor_address, client.clone());
 
         return block_on(async {
             match client.client_version().await {
@@ -62,7 +59,7 @@ impl RuntimeCache {
 
                     let mut result: RuntimeCache = RuntimeCache {
                         client,
-                        markets: vec![],
+                        markets: OrganizedList::new(),
                         uniswap_query,
                         bundle_executor,
                         routes: vec![],
@@ -70,6 +67,7 @@ impl RuntimeCache {
 
                     println!("Caching runtime...\n");
                     result.init_markets(network, config).await;
+                    result.markets.sort();
 
                     // result.calculate_routes(network, config);
                     // result.calculate_routes(network, config);
@@ -107,13 +105,15 @@ impl RuntimeCache {
                             dec_to_u256(&config.min_market_reserves, market.tokens[1].decimals);
 
                         if reserves.0.ge(&min_reserve_0) && reserves.1.ge(&min_reserve_1) {
-                            self.markets.push(market.clone());
+                            self.markets.add_value(market.clone());
                         }
                     }
                 }
             }
             Err(_) => {}
         };
+
+        // self.markets.sort_unstable_by(|x| x.)
     }
 
     /*

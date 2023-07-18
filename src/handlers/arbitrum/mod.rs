@@ -2,7 +2,7 @@ use std::time::Instant;
 
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 
-use crate::{env::*, types::ReserveTable};
+use crate::{env::*, types::{ OrganizedList, Reserves}};
 
 use super::NetworkHandler;
 mod data_feed;
@@ -15,7 +15,7 @@ impl NetworkHandler for ArbitrumHandler {
         runtime_config: &'static RuntimeConfig,
         runtime_cache: &'static RuntimeCache,
     ) {
-        let (sender, mut receiver): (Sender<ReserveTable>, Receiver<_>) = channel(32);
+        let (sender, mut receiver): (Sender<OrganizedList<Reserves>>, Receiver<_>) = channel(32);
 
         _ = tokio::spawn(async move {
             _ = data_feed::init(sender, runtime_config, runtime_cache).await;
@@ -25,7 +25,10 @@ impl NetworkHandler for ArbitrumHandler {
             if reserve_table.len() > 0 {
                 let inst = Instant::now();
 
-                for _route in &runtime_cache.routes {}
+                println!("{:?}", runtime_cache.markets[0].value.contract_address);
+                println!("{:#?}", reserve_table[0].value);
+
+                // for _route in &runtime_cache.routes {}
                 // let _route_results: Vec<RouteResult> = runtime_cache
                 //     .routes
                 //     .iter()

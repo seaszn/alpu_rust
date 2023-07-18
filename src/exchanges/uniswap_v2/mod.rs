@@ -1,10 +1,7 @@
 use ethers::prelude::*;
 use itertools::Itertools;
 use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
-use std::{
-    io::{Error, ErrorKind},
-    sync::*,
-};
+use std::io::{Error, ErrorKind};
 use tokio::task::JoinSet;
 
 use self::types::{uniswap_v2_pair, UniswapV2Factory, UniswapV2FactoryContract};
@@ -14,7 +11,7 @@ use crate::{
     env::{RuntimeCache, RuntimeConfig},
     handlers::types::BalanceChange,
     networks::Network,
-    types::{market::Market, ReserveTable, Reserves, TransactionLog},
+    types::{market::Market, OrgValue, OrganizedList, Reserves, TransactionLog},
 };
 
 mod types;
@@ -80,7 +77,10 @@ pub async fn get_markets(
 }
 
 #[inline(always)]
-pub fn parse_balance_changes(logs: &Vec<TransactionLog>) -> Vec<BalanceChange> {
+pub fn parse_balance_changes(
+    logs: &Vec<TransactionLog>,
+    runtime_cache: &'static RuntimeCache,
+) -> Vec<BalanceChange> {
     if logs.len() > 1 {
         let mut stacked_balance_changes: Vec<Vec<BalanceChange>> = vec![];
         logs.into_par_iter()
@@ -94,7 +94,10 @@ pub fn parse_balance_changes(logs: &Vec<TransactionLog>) -> Vec<BalanceChange> {
 
                     for swap in filters {
                         swap_events.push(BalanceChange {
-                            address: transaction_log.address,
+                            market: runtime_cache
+                                .markets
+                                .filter(|&x| x.value.contract_address.eq(&transaction_log.address))
+                                [0],
                             amount_0_in: swap.amount_0_in.as_u128(),
                             amount_1_in: swap.amount_1_in.as_u128(),
                             amount_0_out: swap.amount_0_out.as_u128(),
@@ -124,53 +127,54 @@ pub fn parse_balance_changes(logs: &Vec<TransactionLog>) -> Vec<BalanceChange> {
 
 #[inline(always)]
 pub async fn get_market_reserves(
-    markets: Vec<H160>,
-    runtime_cache: &RuntimeCache,
+    markets: Vec<&'static OrgValue<Market>>,
+    runtime_cache: &'static RuntimeCache,
     runtime_config: &RuntimeConfig,
-) -> ReserveTable {
-    let mut join_set: JoinSet<(Vec<H160>, Vec<Reserves>)> = JoinSet::new();
-    let cache = Arc::downgrade(&runtime_cache.uniswap_query).clone();
+) -> OrganizedList<Reserves> {
+    let mut join_set: JoinSet<Vec<(usize, Reserves)>> = JoinSet::new();
 
-    for market_addressess in &markets
-        .clone()
-        .into_iter()
-        .chunks(runtime_config.small_chunk_size)
-    {
-        let addressess: Vec<H160> = market_addressess.collect();
-        let uniswap_query = unsafe { &*cache.as_ptr() };
+    for market_addressess in &markets.into_iter().chunks(runtime_config.small_chunk_size) {
+        let market_values = market_addressess.collect_vec();
+        let addressess: Vec<H160> = market_values
+            .iter()
+            .map(|x| x.value.contract_address)
+            .collect();
 
         join_set.spawn(async move {
-            match uniswap_query
+            match runtime_cache
+                .uniswap_query
                 .get_reserves_by_pairs(addressess.clone())
                 .await
             {
                 Ok(response) => {
-                    return (
-                        addressess,
-                        response
-                            .into_iter()
-                            .map(|element: [u128; 3]| {
-                                (U256::from(element[0]), U256::from(element[1]))
-                            })
-                            .collect::<Vec<Reserves>>(),
-                    );
+                    let mut result: Vec<(usize, Reserves)> = Vec::new();
+                    for i in 0..market_values.len() {
+                        let raw_reserves: [u128; 3] = response[i];
+                        result.push((
+                            market_values[i].id,
+                            (U256::from(raw_reserves[0]), U256::from(raw_reserves[1])),
+                        ))
+                    }
+
+                    return result;
                 }
                 Err(_) => {
-                    return (vec![], vec![]);
+                    return vec![];
                 }
             }
         });
     }
 
-    let mut res: ReserveTable = ReserveTable::new();
+    let mut res: OrganizedList<Reserves> = OrganizedList::new();
     while let Some(Ok(result)) = join_set.join_next().await {
-        let market_addressess = result.0;
-        let market_reserves = result.1;
-
-        for i in 0..market_addressess.len() {
-            res.add(&market_addressess[i], market_reserves[i]);
+        for i in 0..result.len() {
+            res.add_pair(OrgValue {
+                id: result[i].0,
+                value: result[i].1,
+            });
         }
     }
 
-    return res.clone();
+    res.sort();
+    return res;
 }

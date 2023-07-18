@@ -37,7 +37,9 @@ impl ReserveTable {
     }
 
     #[doc = r"Checks if the key is present"]
-    pub fn contains_key(&self, key: &H160) -> bool {
+    pub fn contains_key(&mut self, key: &H160) -> bool {
+
+        // self.ff.sort_by_key(|x| x.id);
         return self.internal.iter().any(|x| x.0.eq(&key.0));
     }
 

@@ -1,6 +1,5 @@
 use std::io::Error;
 
-use itertools::Itertools;
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 
 use crate::{
@@ -8,11 +7,11 @@ use crate::{
     networks::Network,
 };
 
-use super::{market::Market, Token};
+use super::{market::Market, OrgValue, Token};
 
 #[derive(Debug, Clone)]
 pub struct Route {
-    pub markets: Vec<&'static Market>,
+    pub markets: Vec<&'static OrgValue<Market>>,
     pub base_token: &'static Token,
 }
 pub struct RouteResult {}
@@ -30,18 +29,17 @@ impl Route {
                 .filter(|x| x.flash_loan_enabled)
                 .collect();
 
-            let runtime_markets = cache.markets.iter().map(|x| x).collect_vec();
-
+            let len = cache.markets.len();
             return base_tokens
-                .par_iter()
+                .iter()
                 .flat_map(|base_token| {
                     generate_from_token(
-                        runtime_markets.clone(),
+                        cache.markets.to_vec(),
                         &base_token,
                         &base_token,
                         config.route_restraints,
                         vec![],
-                        runtime_markets.len(),
+                        len,
                     )
                 })
                 .collect();
@@ -52,25 +50,23 @@ impl Route {
 }
 
 fn generate_from_token(
-    markets: Vec<&'static Market>,
+    markets: Vec<&'static OrgValue<Market>>,
     token_in: &'static Token,
     base_token: &'static Token,
     route_restraints: (usize, usize),
-    route_markets: Vec<&'static Market>,
+    route_markets: Vec<&'static OrgValue<Market>>,
     market_count: usize,
 ) -> Vec<Route> {
-    let runtime_markets = markets.clone();
-    return get_pairable_markets(token_in, runtime_markets)
+    return get_pairable_markets(token_in, markets.clone())
         .par_iter()
         .flat_map(|&market| {
             let mut routes: Vec<Route> = vec![];
 
             let pending_current_token: Option<&'static Token>;
-
-            if token_in.contract_address == market.tokens[0].contract_address {
-                pending_current_token = Some(&market.tokens[1]);
+            if token_in.contract_address == market.value.tokens[0].contract_address {
+                pending_current_token = Some(&market.value.tokens[1]);
             } else {
-                pending_current_token = Some(&market.tokens[0]);
+                pending_current_token = Some(&market.value.tokens[0]);
             }
 
             if let Some(current_token) = pending_current_token {
@@ -85,16 +81,16 @@ fn generate_from_token(
                         base_token,
                     })
                 } else if route_restraints.1 >= 1 && market_count > 1 {
-                    let filtered_markets: Vec<&'static Market> = markets
+                    let filtered_markets: Vec<&OrgValue<Market>> = markets
                         .iter()
-                        .filter(|x| x.contract_address.ne(&market.contract_address.clone()))
-                        .map(|x| *x)
+                        .filter(|&x| x.value.contract_address.ne(&market.value.contract_address))
+                        .map(|&x| x)
                         .collect();
 
                     let mut current_route_markets = route_markets.clone();
                     current_route_markets.push(&market);
 
-                    let mut child_routes = generate_from_token(
+                    let mut m = generate_from_token(
                         filtered_markets,
                         current_token,
                         base_token,
@@ -103,7 +99,7 @@ fn generate_from_token(
                         market_count - 1,
                     );
 
-                    routes.append(&mut child_routes);
+                    routes.append(&mut m);
                 }
             }
 
@@ -213,10 +209,18 @@ fn generate_from_token(
 
 fn get_pairable_markets(
     token_in: &'static Token,
-    markets: Vec<&'static Market>,
-) -> Vec<&'static Market> {
-    return markets
-        .into_iter()
-        .filter(|x| token_in.eq(x.tokens[0]) || token_in.eq(x.tokens[1]))
-        .collect();
+    markets: Vec<&'static OrgValue<Market>>,
+) -> Vec<&'static OrgValue<Market>> {
+    // return markets
+    // .filter(|x| token_in.eq(x.value.tokens[0]) || token_in.eq(x.value.tokens[1]))
+    // .collect();
+
+    let mut f: Vec<&OrgValue<Market>> = vec![];
+    for market in markets {
+        if token_in.eq(market.value.tokens[0]) || token_in.eq(market.value.tokens[1]) {
+            f.push(market);
+        }
+    }
+
+    return f;
 }

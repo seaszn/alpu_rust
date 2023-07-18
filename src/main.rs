@@ -48,7 +48,7 @@ async fn main() {
             //         // println!("Found {} routes..\n", runtime_cache.routes.len());
 
             if let Some(handler) = handlers::Handler::new(RUNTIME_NETWORK.chain_id).await {
-                handler.init(&*RUNTIME_CONFIG, runtime_cache).await;
+                handler.init(&RUNTIME_CONFIG, runtime_cache).await;
             }
         }
         Err(error) => {

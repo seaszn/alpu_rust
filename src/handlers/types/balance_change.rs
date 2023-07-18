@@ -1,8 +1,8 @@
-use ethers::types::*;
+use crate::types::{OrgValue, market::Market};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct BalanceChange {
-    pub address: H160,
+    pub market: &'static OrgValue<Market>,
     pub amount_0_in: u128,
     pub amount_1_in: u128,
     pub amount_0_out: u128,

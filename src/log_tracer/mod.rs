@@ -120,7 +120,7 @@ pub async fn trace_transaction(
 
                                 transaction_logs.push(TransactionLog {
                                     address: call_address,
-                                    protocol: market.protocol,
+                                    protocol: market.value.protocol,
                                     raw: raw_log,
                                 });
                             }

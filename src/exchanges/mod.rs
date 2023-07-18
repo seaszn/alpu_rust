@@ -1,6 +1,5 @@
 use std::{io::Error, vec};
 
-use ethers::types::H160;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 
 use crate::{
@@ -8,7 +7,7 @@ use crate::{
     exchanges::types::Protocol,
     handlers::types::BalanceChange,
     networks::Network,
-    types::{market::Market, ReserveTable, TransactionLog},
+    types::{market::Market, OrgValue, OrganizedList, Reserves, TransactionLog},
 };
 
 use self::types::Exchange;
@@ -39,7 +38,10 @@ pub async fn get_exchange_markets(
     return Ok(result);
 }
 
-pub fn parse_balance_changes(logs: Vec<TransactionLog>) -> Vec<BalanceChange> {
+pub fn parse_balance_changes(
+    logs: Vec<TransactionLog>,
+    runtime_cache: &'static RuntimeCache,
+) -> Vec<BalanceChange> {
     let mut result: Vec<BalanceChange> = vec![];
 
     // Uniswap V2
@@ -49,24 +51,23 @@ pub fn parse_balance_changes(logs: Vec<TransactionLog>) -> Vec<BalanceChange> {
             .into_par_iter()
             .filter(|x| x.protocol == Protocol::UniswapV2)
             .collect(),
+        runtime_cache,
     ));
 
     return result;
 }
 
 pub async fn get_market_reserves(
-    markets: &Vec<Market>,
-    runtime_cache: &RuntimeCache,
+    markets: &'static OrganizedList<Market>,
+    runtime_cache: &'static RuntimeCache,
     runtime_config: &'static RuntimeConfig,
-) -> ReserveTable {
-    let filtered_markets = markets
-        .iter()
-        .filter(|x| x.protocol == Protocol::UniswapV2 || x.protocol == Protocol::StableSwap)
-        .map(|x| x.contract_address)
-        .collect::<Vec<H160>>();
+) -> OrganizedList<Reserves> {
+    let filtered_markets: Vec<&'static OrgValue<Market>> = markets.filter(|x| {
+        x.value.protocol == Protocol::UniswapV2 || x.value.protocol == Protocol::StableSwap
+    });
 
     // Uniswap V2
-    let uniswap_v2_markets: ReserveTable =
+    let uniswap_v2_markets =
         uniswap_v2::get_market_reserves(filtered_markets, runtime_cache, runtime_config).await;
 
     return uniswap_v2_markets;

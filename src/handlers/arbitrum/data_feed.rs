@@ -11,12 +11,12 @@ use websocket_lite::{ClientBuilder, Message, Opcode};
 use crate::env::{RuntimeCache, RuntimeConfig};
 use crate::exchanges::get_market_reserves;
 use crate::handlers::types::{BalanceChange, RelayMessage};
-use crate::types::ReserveTable;
+use crate::types::{OrganizedList, Reserves};
 use crate::{exchanges, log_tracer};
 
 #[inline]
 pub async fn init(
-    sender: Sender<ReserveTable>,
+    sender: Sender<OrganizedList<Reserves>>,
     runtime_config: &'static RuntimeConfig,
     runtime_cache: &'static RuntimeCache,
 ) -> websocket_lite::Result<()> {
@@ -41,7 +41,7 @@ pub async fn init(
 
 async fn handle_text_message(
     incomming: Message,
-    sender: &Sender<ReserveTable>,
+    sender: &Sender<OrganizedList<Reserves>>,
     runtime_config: &'static RuntimeConfig,
     runtime_cache: &'static RuntimeCache,
 ) {
@@ -50,9 +50,10 @@ async fn handle_text_message(
             let transaction_hashes: Vec<H256> = relay_message.decode();
 
             if transaction_hashes.len() > 0 {
-                let mut call_set: JoinSet<(Option<Vec<BalanceChange>>, Option<ReserveTable>)> =
+                let mut call_set: JoinSet<(Option<Vec<BalanceChange>>, Option<OrganizedList<Reserves>>)> =
                     JoinSet::new();
 
+                    //Spawn the task to get the market reserves
                 call_set.spawn(async move {
                     return (
                         None,
@@ -67,6 +68,7 @@ async fn handle_text_message(
                     );
                 });
 
+                // Itterate the transaction_hashes for balance changes
                 for tx_hash in transaction_hashes {
                     call_set.spawn(async move {
                         if let Ok(Some(mut transaction)) =
@@ -81,6 +83,7 @@ async fn handle_text_message(
                                         return (
                                             Some(exchanges::parse_balance_changes(
                                                 transaction_logs,
+                                                runtime_cache
                                             )),
                                             None,
                                         );
@@ -94,7 +97,7 @@ async fn handle_text_message(
                 }
 
                 // // Get all the transaction logs of the
-                let mut market_reserves: Option<ReserveTable> = None;
+                let mut market_reserves: Option<OrganizedList<Reserves>> = None;
                 let mut balance_changes: Vec<BalanceChange> = vec![];
                 while let Some(Ok(result)) = call_set.join_next().await {
                     if let Some(mut changes) = result.0 {
@@ -109,11 +112,9 @@ async fn handle_text_message(
                 if let Some(mut reserves) = market_reserves {
                     if balance_changes.len() > 0 && reserves.len() > 0 {
                         for change in balance_changes {
-                            reserves.update_at(&change.address, |x| {
-                                (
-                                    x.0.add(change.amount_0_in).sub(change.amount_0_out),
-                                    x.1.add(change.amount_1_in).sub(change.amount_1_out),
-                                )
+                            reserves.update_value_at(change.market.id, |x| {
+                                	x.value.0 = x.value.0.add(change.amount_0_in).sub(change.amount_0_out);
+                                	x.value.1 = x.value.1.add(change.amount_1_in).sub(change.amount_1_out);
                             });
                         }
                         _ = sender.send(reserves).await;
