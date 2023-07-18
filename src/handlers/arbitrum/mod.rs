@@ -1,8 +1,13 @@
 use std::time::Instant;
 
+use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 
-use crate::{env::*, types::{ OrganizedList, Reserves}};
+use crate::{
+    env::*,
+    types::{OrganizedList, Reserves, RouteResult, Route},
+    RUNTIME_ROUTES,
+};
 
 use super::NetworkHandler;
 mod data_feed;
@@ -25,10 +30,16 @@ impl NetworkHandler for ArbitrumHandler {
             if reserve_table.len() > 0 {
                 let inst = Instant::now();
 
-                println!("{:?}", runtime_cache.markets[0].value.contract_address);
-                println!("{:#?}", reserve_table[0].value);
+                // println!("{:?}", runtime_cache.markets[0].value.contract_address);
+                // println!("{:#?}", reserve_table[0].value);
 
-                // for _route in &runtime_cache.routes {}
+                // let f = &RUNTIME_ROUTES;
+                let result: Vec<RouteResult> = RUNTIME_ROUTES
+                    .par_iter()
+                    .map(|route: &Route| {
+                        return route.calculate_result(&reserve_table);
+                    })
+                    .collect();
                 // let _route_results: Vec<RouteResult> = runtime_cache
                 //     .routes
                 //     .iter()

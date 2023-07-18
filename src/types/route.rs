@@ -1,4 +1,4 @@
-use std::io::Error;
+use std::{io::Error, ops::Div};
 
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 
@@ -7,7 +7,7 @@ use crate::{
     networks::Network,
 };
 
-use super::{market::Market, OrgValue, Token};
+use super::{market::Market, reserve_table, OrgValue, OrganizedList, Reserves, Token};
 
 #[derive(Debug, Clone)]
 pub struct Route {
@@ -17,6 +17,51 @@ pub struct Route {
 pub struct RouteResult {}
 
 impl Route {
+    #[inline(always)]
+    pub fn calculate_result(&self, reserve_table: &OrganizedList<Reserves>) -> RouteResult {
+        self.calculate_circ_liquidity(reserve_table);
+        return RouteResult {};
+    }
+
+    #[inline(always)]
+    pub fn calculate_circ_liquidity(&self, reserve_table: &OrganizedList<Reserves>) -> Reserves {
+        let first_reserve = &reserve_table[self.markets[0].id];
+        let mut token_in = self.base_token;
+
+        let mut res: Reserves = first_reserve.value;
+        if self.markets[0].value.tokens[0].ne(token_in) {
+            res = (first_reserve.value.1, first_reserve.value.0)
+        }
+
+        for i in 1..self.markets.len() {
+            let market = self.markets[i];
+            let (fee_multiplier, mul) = market.value.get_fee_data();
+            let market_reserve = &reserve_table[market.id];
+
+            let reserve_0 = &market_reserve.value.0;
+            let reserve_1 = &market_reserve.value.1;
+            let res_mul = (fee_multiplier * res.1) / mul;
+
+            if token_in.eq(&market.value.tokens[0]) {
+                // let delta = market_reserve.value.0 + ((fee_multiplier * res.1) / mul);
+                let delta = reserve_0 + res_mul;
+                res.0 = (res.0 * reserve_0) / delta;
+                res.1 = &(res_mul * reserve_1 / mul) / delta;
+
+                token_in = &market.value.tokens[1];
+            } else {
+                // let delta = market_reserve.value.1 + ((fee_multiplier * res.1) / mul);
+                let delta = reserve_1 + res_mul;
+                res.0 = (res.0 * reserve_1) / delta;
+                res.1 = (res_mul * reserve_0) / delta;
+
+                token_in = &market.value.tokens[0];
+            }
+        }
+
+        return res;
+    }
+
     pub fn generate_from_runtime(
         network: &'static Network,
         config: &'static RuntimeConfig,
@@ -31,7 +76,7 @@ impl Route {
 
             let len = cache.markets.len();
             return base_tokens
-                .iter()
+                .par_iter()
                 .flat_map(|base_token| {
                     generate_from_token(
                         cache.markets.to_vec(),

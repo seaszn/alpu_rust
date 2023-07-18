@@ -56,13 +56,13 @@ pub async fn get_markets(
                             .find(|s| s.contract_address.0 == element[1].0);
 
                         if token_0.is_some() && token_1.is_some() {
-                            result.push(Market {
-                                contract_address: element[2],
-                                tokens: [token_0.unwrap(), token_1.unwrap()],
-                                fee: exchange.base_fee,
-                                stable: false,
-                                protocol: exchange.protocol,
-                            });
+                            result.push(Market::new(
+                                element[2],
+                                [token_0.unwrap(), token_1.unwrap()],
+                                exchange.base_fee,
+                                false,
+                                exchange.protocol,
+                            ));
                         }
                     }
                 }

@@ -57,6 +57,9 @@ where
         return self.internal.iter().filter(predicate).collect();
     }
 
+    pub fn value_at(&self, id: &usize) -> &OrgValue<T> {
+        return &self.internal[*id];
+    }
     pub fn to_vec(&self) -> Vec<&OrgValue<T>> {
         return self.internal.iter().map(|x| x).collect();
     }
