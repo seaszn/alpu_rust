@@ -42,11 +42,6 @@ async fn main() {
             println!("Cached {} markets..", runtime_cache.markets.len());
             println!("Cached {} routes..\n", RUNTIME_ROUTES.len());
 
-            //         // runtime_cache
-            //         //     .calculate_routes(&runtime_network, &RUNTIME_CONFIG)
-            //         //     .await;
-            //         // println!("Found {} routes..\n", runtime_cache.routes.len());
-
             if let Some(handler) = handlers::Handler::new(RUNTIME_NETWORK.chain_id).await {
                 handler.init(&RUNTIME_CONFIG, runtime_cache).await;
             }
@@ -55,6 +50,4 @@ async fn main() {
             println!("{:#?}", error);
         }
     }
-
-    // handlers::init(env::RUNTIME_CONFIG.chain_id).await;
 }
