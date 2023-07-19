@@ -96,7 +96,7 @@ pub async fn trace_transaction(
                     // decode all the raw traces
                     for trace_object in raw_traces {
                         if let Some(trace) = trace_object.as_object() {
-                            let call_address = parse_address(trace["address"].clone());
+                            let call_address = parse_address(&trace["address"]);
 
                             // If this a tracked market, decode the transaction log details
                             if let Some(market) =
@@ -104,7 +104,7 @@ pub async fn trace_transaction(
                             {
                                 let mut raw_log: RawLog = RawLog {
                                     topics: vec![],
-                                    data: parse_buffer(trace["data"].clone()),
+                                    data: parse_buffer(&trace["data"]),
                                 };
 
                                 let topic_count: usize = trace.len() - 2;

@@ -1,6 +1,6 @@
-use std::ops::*;
+use std::{ops::*, vec};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct OrganizedList<T>
 where
     T: Send,
@@ -8,11 +8,26 @@ where
     internal: Vec<OrgValue<T>>,
 }
 
+impl<T> IntoIterator for OrganizedList<T>
+where
+    T: Send
+{
+    type Item = OrgValue<T>;
+
+    type IntoIter = vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        return self.internal.into_iter();
+    }
+}
+
 impl<T> Deref for OrganizedList<T>
 where
     T: Send,
 {
     type Target = Vec<OrgValue<T>>;
+
+    #[inline(always)]
     fn deref(&self) -> &Self::Target {
         &self.internal
     }
@@ -26,6 +41,7 @@ where
         return OrganizedList { internal: vec![] };
     }
 
+    #[inline(always)]
     pub fn add_value(&mut self, value: T) {
         self.internal.push(OrgValue {
             id: self.internal.len(),
@@ -33,16 +49,19 @@ where
         })
     }
 
+    #[inline(always)]
     pub fn add_pair(&mut self, value: OrgValue<T>) {
         if !self.contains_key(value.id) {
             self.internal.push(value);
         }
     }
 
+    #[inline(always)]
     pub fn sort(&mut self) {
         self.internal.sort_by_cached_key(|x| x.id);
     }
 
+    #[inline(always)]
     pub fn update_value_at<P>(&mut self, id: usize, mut predicate: P)
     where
         P: FnMut(&mut OrgValue<T>),
@@ -50,6 +69,7 @@ where
         predicate(&mut self.internal[id]);
     }
 
+    #[inline(always)]
     pub fn filter<P>(&self, predicate: P) -> Vec<&OrgValue<T>>
     where
         P: FnMut(&&OrgValue<T>) -> bool,
@@ -57,20 +77,26 @@ where
         return self.internal.iter().filter(predicate).collect();
     }
 
-    pub fn value_at(&self, id: &usize) -> &OrgValue<T> {
-        return &self.internal[*id];
-    }
     pub fn to_vec(&self) -> Vec<&OrgValue<T>> {
         return self.internal.iter().map(|x| x).collect();
     }
 
+    #[inline(always)]
     pub fn contains_key(&mut self, id: usize) -> bool {
         self.sort();
         return self.contains_key_unsorted(id);
     }
 
+    #[inline(always)]
     pub fn contains_key_unsorted(&self, id: usize) -> bool {
-        return self.internal.iter().any(|x| x.id == id);
+        for i in 0..self.internal.len() {
+            if self.internal[i].id == id {
+                return true;
+            }
+        }
+
+        return false;
+        // return self.internal.par_iter().any(|x| x.id == id);
     }
 }
 

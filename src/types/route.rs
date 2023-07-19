@@ -1,5 +1,7 @@
-use std::{io::Error, ops::Div};
+use std::io::Error;
 
+use ethers::types::U256;
+use itertools::Itertools;
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 
 use crate::{
@@ -7,20 +9,41 @@ use crate::{
     networks::Network,
 };
 
-use super::{market::Market, reserve_table, OrgValue, OrganizedList, Reserves, Token};
+use super::{market::Market, OrgValue, OrganizedList, Reserves, Token};
 
 #[derive(Debug, Clone)]
 pub struct Route {
     pub markets: Vec<&'static OrgValue<Market>>,
     pub base_token: &'static Token,
+
+    //private
+    market_fee_data: Vec<(&'static U256, &'static U256)>,
+    market_ids: Vec<usize>,
 }
 pub struct RouteResult {}
 
 impl Route {
     #[inline(always)]
-    pub fn calculate_result(&self, reserve_table: &OrganizedList<Reserves>) -> RouteResult {
-        self.calculate_circ_liquidity(reserve_table);
-        return RouteResult {};
+    pub fn calculate_result(
+        &self,
+        reserve_table: &OrganizedList<Reserves>,
+        affected_markets: &Vec<usize>,
+    ) -> Option<RouteResult> {
+        if self.contains_any_market(affected_markets) {
+            let liquidity: Reserves = self.calculate_circ_liquidity(reserve_table);
+            let (fee_multiplier, multiplier) = self.market_fee_data[0];
+
+            let feed_liquidity_sqrt =
+                ((liquidity.0 * liquidity.1 * fee_multiplier) / multiplier).integer_sqrt();
+            if feed_liquidity_sqrt > liquidity.0 {
+                let _optimal_input =
+                    (feed_liquidity_sqrt - liquidity.0) * multiplier / fee_multiplier;
+
+                return Some(RouteResult {});
+            }
+        }
+
+        return None;
     }
 
     #[inline(always)]
@@ -35,7 +58,7 @@ impl Route {
 
         for i in 1..self.markets.len() {
             let market = self.markets[i];
-            let (fee_multiplier, mul) = market.value.get_fee_data();
+            let (fee_multiplier, mul) = self.market_fee_data[i];
             let market_reserve = &reserve_table[market.id];
 
             let reserve_0 = &market_reserve.value.0;
@@ -43,14 +66,12 @@ impl Route {
             let res_mul = (fee_multiplier * res.1) / mul;
 
             if token_in.eq(&market.value.tokens[0]) {
-                // let delta = market_reserve.value.0 + ((fee_multiplier * res.1) / mul);
                 let delta = reserve_0 + res_mul;
                 res.0 = (res.0 * reserve_0) / delta;
-                res.1 = &(res_mul * reserve_1 / mul) / delta;
+                res.1 = (res_mul * reserve_1 / mul) / delta;
 
                 token_in = &market.value.tokens[1];
             } else {
-                // let delta = market_reserve.value.1 + ((fee_multiplier * res.1) / mul);
                 let delta = reserve_1 + res_mul;
                 res.0 = (res.0 * reserve_1) / delta;
                 res.1 = (res_mul * reserve_0) / delta;
@@ -60,6 +81,31 @@ impl Route {
         }
 
         return res;
+    }
+
+    #[inline(always)]
+    fn contains_any_market(&self, market_ids: &Vec<usize>) -> bool {
+        for local_market_id in &self.market_ids {
+            if market_ids.iter().any(|x| x == local_market_id) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    pub fn new(markets: Vec<&'static OrgValue<Market>>, base_token: &'static Token) -> Route {
+        let market_fee_data: Vec<(&U256, &U256)> =
+            markets.iter().map(|x| x.value.get_fee_data()).collect_vec();
+
+        let market_ids: Vec<usize> = markets.iter().map(|x| x.id).collect_vec();
+
+        return Route {
+            markets,
+            base_token,
+            market_fee_data,
+            market_ids,
+        };
     }
 
     pub fn generate_from_runtime(
@@ -121,10 +167,7 @@ fn generate_from_token(
                     let mut current_route_markets = route_markets.clone();
                     current_route_markets.push(&market);
 
-                    routes.push(Route {
-                        markets: current_route_markets,
-                        base_token,
-                    })
+                    routes.push(Route::new(current_route_markets, base_token));
                 } else if route_restraints.1 >= 1 && market_count > 1 {
                     let filtered_markets: Vec<&OrgValue<Market>> = markets
                         .iter()
@@ -256,16 +299,12 @@ fn get_pairable_markets(
     token_in: &'static Token,
     markets: Vec<&'static OrgValue<Market>>,
 ) -> Vec<&'static OrgValue<Market>> {
-    // return markets
-    // .filter(|x| token_in.eq(x.value.tokens[0]) || token_in.eq(x.value.tokens[1]))
-    // .collect();
-
-    let mut f: Vec<&OrgValue<Market>> = vec![];
+    let mut result: Vec<&OrgValue<Market>> = vec![];
     for market in markets {
         if token_in.eq(market.value.tokens[0]) || token_in.eq(market.value.tokens[1]) {
-            f.push(market);
+            result.push(market);
         }
     }
 
-    return f;
+    return result;
 }

@@ -78,7 +78,7 @@ pub async fn get_markets(
 
 #[inline(always)]
 pub fn parse_balance_changes(
-    logs: &Vec<TransactionLog>,
+    logs: Vec<&TransactionLog>,
     runtime_cache: &'static RuntimeCache,
 ) -> Vec<BalanceChange> {
     if logs.len() > 1 {
@@ -133,21 +133,24 @@ pub async fn get_market_reserves(
 ) -> OrganizedList<Reserves> {
     let mut join_set: JoinSet<Vec<(usize, Reserves)>> = JoinSet::new();
 
-    for market_addressess in &markets.into_iter().chunks(runtime_config.small_chunk_size) {
-        let market_values = market_addressess.collect_vec();
+    
+    for market_chunk in &markets.into_iter().chunks(runtime_config.small_chunk_size) {
+        let market_values = market_chunk.collect_vec();
         let addressess: Vec<H160> = market_values
             .iter()
             .map(|x| x.value.contract_address)
             .collect();
 
+        
         join_set.spawn(async move {
             match runtime_cache
-                .uniswap_query
-                .get_reserves_by_pairs(addressess.clone())
-                .await
+            .uniswap_query
+            .get_reserves_by_pairs(addressess.clone())
+            .await
             {
                 Ok(response) => {
                     let mut result: Vec<(usize, Reserves)> = Vec::new();
+                    
                     for i in 0..market_values.len() {
                         let raw_reserves: [u128; 3] = response[i];
                         result.push((
@@ -155,7 +158,7 @@ pub async fn get_market_reserves(
                             (U256::from(raw_reserves[0]), U256::from(raw_reserves[1])),
                         ))
                     }
-
+                    
                     return result;
                 }
                 Err(_) => {
@@ -167,6 +170,7 @@ pub async fn get_market_reserves(
 
     let mut res: OrganizedList<Reserves> = OrganizedList::new();
     while let Some(Ok(result)) = join_set.join_next().await {
+        // println!("{}", result.len());
         for i in 0..result.len() {
             res.add_pair(OrgValue {
                 id: result[i].0,

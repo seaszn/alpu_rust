@@ -1,7 +1,5 @@
 use std::{io::Error, vec};
 
-use rayon::prelude::{IntoParallelIterator, ParallelIterator};
-
 use crate::{
     env::{RuntimeCache, RuntimeConfig},
     exchanges::types::Protocol,
@@ -46,9 +44,7 @@ pub fn parse_balance_changes(
 
     // Uniswap V2
     result.append(&mut uniswap_v2::parse_balance_changes(
-        &logs
-            .clone()
-            .into_par_iter()
+        logs.iter()
             .filter(|x| x.protocol == Protocol::UniswapV2)
             .collect(),
         runtime_cache,

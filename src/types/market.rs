@@ -1,7 +1,4 @@
-use std::sync::Arc;
-
 use ethers::prelude::*;
-use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 
 use crate::{env::RuntimeCache, exchanges::types::Protocol};
 
@@ -39,6 +36,7 @@ impl Market {
         };
     }
 
+    #[inline(always)]
     pub fn from_address(
         address: &H160,
         runtime_cache: &'static RuntimeCache,
@@ -49,13 +47,7 @@ impl Market {
             }
         }
 
-        // todo!("from_address in markets");
-
         return None;
-    }
-
-    pub fn get_market_addressess(markets: &Vec<Arc<Market>>) -> Vec<H160> {
-        return markets.par_iter().map(|x| x.contract_address).collect();
     }
 
     #[inline(always)]

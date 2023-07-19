@@ -16,12 +16,13 @@ pub fn parse_topic_buffer(value: &Value) -> Option<H256> {
 }
 
 #[inline(always)]
-pub fn parse_address(value: Value) -> H160 {
+pub fn parse_address(value: &Value) -> H160 {
     let bytes = Bytes::from(parse_buffer(value));
     return H160::from_slice(&bytes);
 }
 
-pub fn parse_buffer(data: Value) -> Vec<u8> {
+#[inline(always)]
+pub fn parse_buffer(data: &Value) -> Vec<u8> {
     let mut result: Vec<u8> = vec![];
 
     if let Some(buffer_map) = data.as_object() {

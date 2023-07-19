@@ -16,7 +16,7 @@ use crate::{exchanges, log_tracer};
 
 #[inline]
 pub async fn init(
-    sender: Sender<OrganizedList<Reserves>>,
+    sender: Sender<(OrganizedList<Reserves>, Vec<usize>)>,
     runtime_config: &'static RuntimeConfig,
     runtime_cache: &'static RuntimeCache,
 ) -> websocket_lite::Result<()> {
@@ -41,7 +41,7 @@ pub async fn init(
 
 async fn handle_text_message(
     incomming: Message,
-    sender: &Sender<OrganizedList<Reserves>>,
+    sender: &Sender<(OrganizedList<Reserves>, Vec<usize>)>,
     runtime_config: &'static RuntimeConfig,
     runtime_cache: &'static RuntimeCache,
 ) {
@@ -108,16 +108,19 @@ async fn handle_text_message(
                         market_reserves = Some(reserves);
                     }
                 }
-
+                
                 if let Some(mut reserves) = market_reserves {
                     if balance_changes.len() > 0 && reserves.len() > 0 {
+                        let mut changed_market_ids: Vec<usize> = vec![];
                         for change in balance_changes {
+                            changed_market_ids.push(change.market.id);
                             reserves.update_value_at(change.market.id, |x| {
                                 	x.value.0 = x.value.0.add(change.amount_0_in).sub(change.amount_0_out);
                                 	x.value.1 = x.value.1.add(change.amount_1_in).sub(change.amount_1_out);
                             });
                         }
-                        _ = sender.send(reserves).await;
+
+                        _ = sender.send((reserves, changed_market_ids)).await;
                     }
                 }
             }
