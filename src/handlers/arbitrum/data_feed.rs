@@ -1,5 +1,3 @@
-use std::ops::{Add, Sub};
-use std::time::Instant;
 
 use ethers::providers::Middleware;
 use futures::{SinkExt, StreamExt};
@@ -51,7 +49,7 @@ async fn handle_text_message(
         if let Some(relay_message) = RelayMessage::from_json(message_text) {
             let transaction_hashes: Vec<H256> = relay_message.decode();
 
-            let inst = Instant::now();
+            // let inst = Instant::now();
             if transaction_hashes.len() > 0 {
                 let mut call_set: JoinSet<(Vec<BalanceChange>, Option<OrganizedList<Reserves>>)> =
                     JoinSet::new();
@@ -116,13 +114,13 @@ async fn handle_text_message(
                             changed_market_ids.push(change.market.id);
                             reserves.update_value_at(change.market.id, |x| {
                                 x.value.0 =
-                                    x.value.0.add(change.amount_0_in).sub(change.amount_0_out);
+                                    x.value.0 + change.amount_0_in - change.amount_0_out;
                                 x.value.1 =
-                                    x.value.1.add(change.amount_1_in).sub(change.amount_1_out);
+                                    x.value.1 + change.amount_1_in - change.amount_1_out;
                             });
                         }
 
-                        println!("balance changes: {:?}", inst.elapsed());
+                        // println!("balance changes: {:?}", inst.elapsed());
                         _ = sender.send((reserves, changed_market_ids)).await;
                     }
                 }

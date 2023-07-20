@@ -46,7 +46,7 @@ async fn main() {
             println!("Cached {} routes..\n", RUNTIME_ROUTES.len());
 
             if PRICE_ORACLE.running {
-                println!("Listening to market updates...\n");
+                println!("Waiting for validation, this might take a while");
 
                 if let Some(handler) = handlers::Handler::new(RUNTIME_NETWORK.chain_id).await {
                     handler
