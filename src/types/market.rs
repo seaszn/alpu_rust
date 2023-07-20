@@ -1,8 +1,8 @@
 use ethers::prelude::*;
 
-use crate::{env::RuntimeCache, exchanges::types::Protocol};
+use crate::{env::RuntimeCache, exchanges::{types::Protocol, calculate_amount_out}};
 
-use super::{OrgValue, Token};
+use super::{OrgValue, Token, Reserves};
 
 lazy_static! {
     static ref BASE_FEE_MUL: U256 = U256::from(10000u128);
@@ -56,5 +56,10 @@ impl Market {
             &self.fee_mul,
             &BASE_FEE_MUL,
         );
+    }
+
+    #[inline(always)]
+    pub fn amount_out(&self, reserves: &Reserves, input_amount: &U256) -> U256{
+        return calculate_amount_out(reserves, input_amount, self);
     }
 }

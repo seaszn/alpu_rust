@@ -1,5 +1,7 @@
 use std::{io::Error, vec};
 
+use ethers::types::U256;
+
 use crate::{
     env::{RuntimeCache, RuntimeConfig},
     exchanges::types::Protocol,
@@ -36,6 +38,7 @@ pub async fn get_exchange_markets(
     return Ok(result);
 }
 
+#[inline(always)]
 pub fn parse_balance_changes(
     logs: Vec<TransactionLog>,
     runtime_cache: &'static RuntimeCache,
@@ -53,6 +56,7 @@ pub fn parse_balance_changes(
     return result;
 }
 
+#[inline(always)]
 pub async fn get_market_reserves(
     markets: &'static OrganizedList<Market>,
     runtime_cache: &'static RuntimeCache,
@@ -67,4 +71,19 @@ pub async fn get_market_reserves(
         uniswap_v2::get_market_reserves(filtered_markets, runtime_cache, runtime_config).await;
 
     return uniswap_v2_markets;
+}
+
+#[inline(always)]
+pub fn calculate_amount_out(
+    reserves: &Reserves,
+    input_amount: &U256,
+    market: &Market
+) -> U256 {
+    let protocol = &market.protocol;
+
+    if protocol == &Protocol::UniswapV2 || (protocol == &Protocol::StableSwap && market.stable == false) {
+        return uniswap_v2::calculate_amount_out(market, reserves, input_amount);
+    }
+
+    return U256::zero();
 }

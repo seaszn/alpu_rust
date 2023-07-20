@@ -1,4 +1,5 @@
 use std::ops::{Add, Sub};
+use std::time::Instant;
 
 use ethers::providers::Middleware;
 use futures::{SinkExt, StreamExt};
@@ -14,7 +15,7 @@ use crate::handlers::types::{BalanceChange, RelayMessage};
 use crate::types::{OrganizedList, Reserves};
 use crate::{exchanges, log_tracer};
 
-#[inline]
+#[inline(always)]
 pub async fn init(
     sender: Sender<(OrganizedList<Reserves>, Vec<usize>)>,
     runtime_config: &'static RuntimeConfig,
@@ -39,6 +40,7 @@ pub async fn init(
     Ok(())
 }
 
+#[inline(always)]
 async fn handle_text_message(
     incomming: Message,
     sender: &Sender<(OrganizedList<Reserves>, Vec<usize>)>,
@@ -49,14 +51,15 @@ async fn handle_text_message(
         if let Some(relay_message) = RelayMessage::from_json(message_text) {
             let transaction_hashes: Vec<H256> = relay_message.decode();
 
+            let inst = Instant::now();
             if transaction_hashes.len() > 0 {
-                let mut call_set: JoinSet<(Option<Vec<BalanceChange>>, Option<OrganizedList<Reserves>>)> =
+                let mut call_set: JoinSet<(Vec<BalanceChange>, Option<OrganizedList<Reserves>>)> =
                     JoinSet::new();
 
-                    //Spawn the task to get the market reserves
+                //Spawn the task to get the market reserves
                 call_set.spawn(async move {
                     return (
-                        None,
+                        vec![],
                         Some(
                             get_market_reserves(
                                 &runtime_cache.markets,
@@ -80,46 +83,46 @@ async fn handle_text_message(
                                         .await
                                 {
                                     if transaction_logs.len() > 0 {
-                                        return (
-                                            Some(exchanges::parse_balance_changes(
-                                                transaction_logs,
-                                                runtime_cache
-                                            )),
-                                            None,
+                                        let f = exchanges::parse_balance_changes(
+                                            transaction_logs,
+                                            runtime_cache,
                                         );
+
+                                        return (f, None);
                                     }
                                 }
                             }
                         }
 
-                        return (None, None);
+                        return (vec![], None);
                     });
                 }
 
-                // // Get all the transaction logs of the
+                // Get all the transaction logs of the
                 let mut market_reserves: Option<OrganizedList<Reserves>> = None;
                 let mut balance_changes: Vec<BalanceChange> = vec![];
-                while let Some(Ok(result)) = call_set.join_next().await {
-                    if let Some(mut changes) = result.0 {
-                        if changes.len() > 0 {
+                while let Some(Ok((mut changes, reserves))) = call_set.join_next().await {
+                    if changes.len() > 0 {
                             balance_changes.append(&mut changes)
-                        }
-                    } else if let Some(reserves) = result.1 {
+                    } else if let Some(reserves) = reserves{
                         market_reserves = Some(reserves);
                     }
                 }
-                
+
                 if let Some(mut reserves) = market_reserves {
                     if balance_changes.len() > 0 && reserves.len() > 0 {
                         let mut changed_market_ids: Vec<usize> = vec![];
                         for change in balance_changes {
                             changed_market_ids.push(change.market.id);
                             reserves.update_value_at(change.market.id, |x| {
-                                	x.value.0 = x.value.0.add(change.amount_0_in).sub(change.amount_0_out);
-                                	x.value.1 = x.value.1.add(change.amount_1_in).sub(change.amount_1_out);
+                                x.value.0 =
+                                    x.value.0.add(change.amount_0_in).sub(change.amount_0_out);
+                                x.value.1 =
+                                    x.value.1.add(change.amount_1_in).sub(change.amount_1_out);
                             });
                         }
 
+                        println!("balance changes: {:?}", inst.elapsed());
                         _ = sender.send((reserves, changed_market_ids)).await;
                     }
                 }

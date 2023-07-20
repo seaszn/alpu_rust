@@ -4,6 +4,7 @@ use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIter
 use std::io::{Error, ErrorKind};
 use tokio::task::JoinSet;
 
+use ethers::types::U256;
 use self::types::{uniswap_v2_pair, UniswapV2Factory, UniswapV2FactoryContract};
 
 use super::Exchange;
@@ -181,4 +182,14 @@ pub async fn get_market_reserves(
 
     res.sort();
     return res;
+}
+
+#[inline(always)]
+pub fn calculate_amount_out(market: &Market, reserves: &Reserves, input_amount: &U256) -> U256{
+    let (fee_multiplier, multiplier) = market.get_fee_data();
+
+    let amount_in_with_fee = input_amount * fee_multiplier;
+    let numerator = amount_in_with_fee * reserves.1;
+    let denominator = (reserves.0 * multiplier) + amount_in_with_fee;
+    return numerator / denominator;
 }

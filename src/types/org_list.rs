@@ -77,6 +77,7 @@ where
         return self.internal.iter().filter(predicate).collect();
     }
 
+    #[inline(always)]
     pub fn to_vec(&self) -> Vec<&OrgValue<T>> {
         return self.internal.iter().map(|x| x).collect();
     }
@@ -120,6 +121,7 @@ impl<T> OrganizedFilter<T> for Vec<&OrgValue<T>>
 where
     T: Send,
 {
+    #[inline(always)]
     fn filter<P>(&self, predicate: P) -> Vec<&OrgValue<T>>
     where
         P: Fn(&OrgValue<T>) -> bool,

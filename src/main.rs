@@ -2,6 +2,7 @@ use std::io::Error;
 
 use env::{RuntimeCache, RuntimeConfig};
 use networks::Network;
+use price_oracle::PriceOracle;
 use types::Route;
 
 #[macro_use]
@@ -14,6 +15,7 @@ pub mod exchanges;
 mod handlers;
 pub mod log_tracer;
 pub mod networks;
+pub mod price_oracle;
 pub mod types;
 pub mod utils;
 
@@ -24,6 +26,7 @@ lazy_static! {
         RuntimeCache::new(&RUNTIME_CONFIG, &RUNTIME_NETWORK);
     static ref RUNTIME_ROUTES: Vec<Route> =
         Route::generate_from_runtime(&RUNTIME_NETWORK, &RUNTIME_CONFIG, &RUNTIME_CACHE);
+    static ref PRICE_ORACLE: PriceOracle = PriceOracle::new(&RUNTIME_NETWORK);
 }
 
 #[tokio::main(flavor = "multi_thread")]
@@ -42,8 +45,16 @@ async fn main() {
             println!("Cached {} markets..", runtime_cache.markets.len());
             println!("Cached {} routes..\n", RUNTIME_ROUTES.len());
 
-            if let Some(handler) = handlers::Handler::new(RUNTIME_NETWORK.chain_id).await {
-                handler.init(&RUNTIME_CONFIG, runtime_cache).await;
+            if PRICE_ORACLE.running {
+                println!("Listening to market updates...\n");
+
+                if let Some(handler) = handlers::Handler::new(RUNTIME_NETWORK.chain_id).await {
+                    handler
+                        .init(&RUNTIME_CONFIG, runtime_cache, &PRICE_ORACLE)
+                        .await;
+                }
+            } else {
+                panic!("The oracle failed to retreive the initial price table...");
             }
         }
         Err(error) => {

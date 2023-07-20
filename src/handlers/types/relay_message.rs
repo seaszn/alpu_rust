@@ -31,7 +31,7 @@ pub enum L2MessageType {
 }
 
 #[derive(Deserialize)]
-pub struct InternalMessge {
+pub struct InternalMessage {
     #[serde(rename = "sequenceNumber")]
     pub sequence_number: u32,
     pub message: InternalMessageData,
@@ -63,41 +63,39 @@ pub struct DataHeader {
 #[derive(Deserialize)]
 pub struct RelayMessage {
     pub version: u32,
-    pub messages: Vec<InternalMessge>,
+    pub messages: Vec<InternalMessage>,
 }
 
 impl RelayMessage {
+    #[inline(always)]
     pub fn from_json(input: &str) -> Option<RelayMessage> {
-        let result: Result<RelayMessage, serde_json::Error> = serde_json::from_str(&input);
-        if result.is_ok() {
-            return Option::Some(result.unwrap());
-        } else {
-            return Option::None;
+        match serde_json::from_str(&input) {
+            Ok(res) => {
+                return Some(res);
+            }
+            Err(_) => {
+                return None;
+            }
         }
     }
 
+    #[inline(always)]
     pub fn decode(&self) -> Vec<H256> {
-        let mut result: Vec<H256> = Vec::new();
         if self.messages.len() > 0 {
-            for message in &self.messages {
-                if message.message.message.header.kind == L1MessageType::L2Message as u32 {
-                    let data = general_purpose::GeneralPurpose::decode(
-                        &general_purpose::STANDARD,
-                        &message.message.message.l2_message,
-                    )
-                    .unwrap();
+            let mut result: Vec<H256> = vec![];
 
+            for message in &self.messages{
+                if let Ok(data) = general_purpose::STANDARD.decode(&message.message.message.l2_message){
                     let (message_kind, message_data) = data.split_first().unwrap();
-
                     if i8::from_be_bytes([*message_kind]) == L2MessageType::SignedTx as i8 {
-                        result.push(H256::from(keccak256(message_data)));
-                        // if let Some(transaction) = Transaction::from_data(message_data) {
-                        // }
+                        result.push(H256::from(keccak256(message_data)))
                     }
                 }
             }
+
+            return  result;
         }
 
-        return result;
+        return vec![];
     }
 }

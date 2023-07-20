@@ -47,10 +47,17 @@ pub fn dec_to_u128(dec: &str, unit: u32) -> u128 {
         let decimal_count = (dec.len() - decimal_index) as u32;
 
         if decimal_count > unit {
-            panic!("decimals overflow unit type");
+            let abs_length = dec.len() - (decimal_count as usize);
+            return dec
+                .replace(".", "")
+                .split_at(abs_length + unit as usize)
+                .0
+                .parse::<u128>()
+                .unwrap();
         }
 
-        return dec.replace(".", "").parse::<u128>().unwrap() * 10u128.pow(unit - decimal_count);
+        return dec.replace(".", "").parse::<u128>().unwrap()
+            * 10u128.pow((unit - decimal_count) + 1);
     } else {
         panic!("wrong input");
     }

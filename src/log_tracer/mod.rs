@@ -25,9 +25,10 @@ const JS_CONTENT: &str = "{
     step: function (log) {
        var topicCount = (log.op.toString().match(/LOG(\\d)/) || [])[1];
         if (topicCount) {
+            const peek_0 = parseInt(log.stack.peek(0));
             const res = {
                 address: log.contract.getAddress(),
-                data: log.memory.slice(parseInt(log.stack.peek(0)), parseInt(log.stack.peek(0)) + parseInt(log.stack.peek(1))),
+                data: log.memory.slice(peek_0, peek_0 + parseInt(log.stack.peek(1))),
             };
             
             for (var i = 0; i < topicCount; i++){
@@ -60,6 +61,7 @@ lazy_static! {
     };
 }
 
+#[inline(always)]
 pub async fn trace_transaction(
     tx: &mut Transaction,
     runtime_cache: &'static RuntimeCache,
@@ -72,7 +74,7 @@ pub async fn trace_transaction(
                 from: Some(tx.from),
                 to: Some(NameOrAddress::Address(tx.to.unwrap())),
                 gas: Some(tx.gas),
-                gas_price: Some(tx.gas_price.unwrap()),
+                gas_price: tx.gas_price,
                 value: Some(tx.value),
                 data: Some(tx.input.clone()),
                 nonce: None,
@@ -109,7 +111,7 @@ pub async fn trace_transaction(
 
                                 let topic_count: usize = trace.len() - 2;
                                 if topic_count >= 1 {
-                                    for i in 0..trace.len() - 2 {
+                                    for i in 0..topic_count {
                                         if let Some(topic) =
                                             parse_topic_buffer(&trace[&i.to_string()])
                                         {

@@ -9,7 +9,10 @@ use crate::{
     networks::Network,
 };
 
-use super::{market::Market, OrgValue, OrganizedList, Reserves, Token};
+use super::{
+    market::Market, reserves::ReverseReserves, OrgValue, OrganizedList, PriceTable, Reserves,
+    SwapLog, Token,
+};
 
 #[derive(Debug, Clone)]
 pub struct Route {
@@ -20,13 +23,21 @@ pub struct Route {
     market_fee_data: Vec<(&'static U256, &'static U256)>,
     market_ids: Vec<usize>,
 }
-pub struct RouteResult {}
+pub struct RouteResult {
+    pub base_token: &'static Token,
+    pub start_balance: U256,
+    pub end_balance: U256,
+    pub profit_loss: U256,
+    pub ref_profit_loss: U256,
+    pub transactions: Vec<SwapLog>,
+}
 
 impl Route {
     #[inline(always)]
     pub fn calculate_result(
         &self,
         reserve_table: &OrganizedList<Reserves>,
+        price_table: &'static PriceTable,
         affected_markets: &Vec<usize>,
     ) -> Option<RouteResult> {
         if self.contains_any_market(affected_markets) {
@@ -35,11 +46,17 @@ impl Route {
 
             let feed_liquidity_sqrt =
                 ((liquidity.0 * liquidity.1 * fee_multiplier) / multiplier).integer_sqrt();
+
             if feed_liquidity_sqrt > liquidity.0 {
-                let _optimal_input =
+                let input_amount =
                     (feed_liquidity_sqrt - liquidity.0) * multiplier / fee_multiplier;
 
-                return Some(RouteResult {});
+                return self.calculate_circ_profit(
+                    reserve_table,
+                    price_table,
+                    input_amount,
+                    self.base_token,
+                );
             }
         }
 
@@ -47,7 +64,7 @@ impl Route {
     }
 
     #[inline(always)]
-    pub fn calculate_circ_liquidity(&self, reserve_table: &OrganizedList<Reserves>) -> Reserves {
+    fn calculate_circ_liquidity(&self, reserve_table: &OrganizedList<Reserves>) -> Reserves {
         let first_reserve = &reserve_table[self.markets[0].id];
         let mut token_in = self.base_token;
 
@@ -74,13 +91,66 @@ impl Route {
             } else {
                 let delta = reserve_1 + res_mul;
                 res.0 = (res.0 * reserve_1) / delta;
-                res.1 = (res_mul * reserve_0) / delta;
+                res.1 = (res_mul * reserve_0) / delta; //TODO: if results weird, change to reserve 1
 
                 token_in = &market.value.tokens[0];
             }
         }
 
         return res;
+    }
+
+    #[inline(always)]
+    fn calculate_circ_profit(
+        &self,
+        reserve_table: &OrganizedList<Reserves>,
+        price_table: &'static PriceTable,
+        mut input_amount: U256,
+        mut token_in: &'static Token,
+    ) -> Option<RouteResult> {
+        let _start_balance = input_amount;
+        let mut swap_transactions: Vec<SwapLog> = vec![];
+
+        for market in &self.markets {
+            let swap_amount = input_amount;
+            let input_token = token_in;
+
+            let reserves: Reserves = reserve_table[market.id].value;
+            let market_value = market.value;
+
+            let token_0 = market_value.tokens[0];
+            let token_1 = market_value.tokens[1];
+
+            if input_token == token_0 {
+                input_amount = market_value.amount_out(&reserves, &input_amount);
+                token_in = token_1;
+            } else {
+                input_amount = market_value.amount_out(&reserves.reverse(), &input_amount);
+                token_in = token_0;
+            }
+
+            swap_transactions.push(SwapLog {
+                market: &market,
+                token_in: input_token,
+                token_out: token_in,
+                amount_in: swap_amount,
+                amount_out: input_amount,
+            });
+        }
+
+        if input_amount > _start_balance {
+            let profit_loss = input_amount - _start_balance;
+            return Some(RouteResult {
+                base_token: self.base_token,
+                start_balance: _start_balance,
+                end_balance: input_amount,
+                profit_loss,
+                ref_profit_loss: price_table.get_ref_price(self.base_token, profit_loss),
+                transactions: swap_transactions,
+            });
+        } else {
+            None
+        }
     }
 
     #[inline(always)]
@@ -94,6 +164,7 @@ impl Route {
         return false;
     }
 
+    #[inline(always)]
     pub fn new(markets: Vec<&'static OrgValue<Market>>, base_token: &'static Token) -> Route {
         let market_fee_data: Vec<(&U256, &U256)> =
             markets.iter().map(|x| x.value.get_fee_data()).collect_vec();
@@ -196,105 +267,7 @@ fn generate_from_token(
         .collect();
 }
 
-/*
-// pub fn calculate_result(&self, reserve_table: &ReserveTable) -> RouteResult {
-//     if let Some(_route_liquidity) = self.calculate_circ_liquidity(reserve_table) {
-
-//     }
-
-//     return RouteResult {};
-// }
-
-// fn calculate_circ_liquidity(&self, reserves: &ReserveTable) -> Option<Reserves> {
-//     if let Some(first_reserve) = reserves.get_value(&self.markets[0].contract_address) {
-//         let mut token_in = &self.base_token;
-
-//         let mut res: Reserves = first_reserve;
-//         if self.markets[0].tokens[0].ne(token_in) {
-//             res = (first_reserve.1, first_reserve.0)
-//         }
-
-//         for market in self.markets.split_first().unwrap().1 {
-//             let (fee_multiplier, mul) = market.get_fee_data();
-//             let market_reserve = &reserves.get_value(&market.contract_address).unwrap();
-
-//             if token_in.eq(&market.tokens[0]) {
-//                 let delta = market_reserve.0 + ((fee_multiplier * res.1) / mul);
-//                 res.0 = &(res.0 * market_reserve.0) / delta;
-//                 res.1 = &(fee_multiplier * res.1 * market_reserve.1 / mul) / delta;
-
-//                 token_in = &market.tokens[1];
-//             } else {
-//                 let delta = market_reserve.1 + ((fee_multiplier * res.1) / mul);
-//                 res.0 = &(res.0 * market_reserve.1) / delta;
-//                 res.1 = &(fee_multiplier * res.1 * market_reserve.0 / mul) / delta;
-
-//                 token_in = &market.tokens[0];
-//             }
-//         }
-
-//         return Some(res);
-//     }
-
-// return None;
-// }
-// }
-*/
-// fn generate_internal(
-//     markets: Vec<&'static Market>,
-//     token_in: &'static Token,
-//     base_token: &'static Token,
-//     route_restraints: (usize, usize),
-//     route_markets: Vec<&'static Market>,
-// ) -> Vec<Route> {
-//     return get_pairable_markets(token_in, markets.clone())
-//         .par_iter()
-//         .flat_map(|market| {
-//             let mut routes: Vec<Route> = vec![];
-//             // what is the current token going out of the market
-//             let pending_current_token: Option<&'static Token>;
-//             if token_in.contract_address == market.tokens[0].contract_address {
-//                 pending_current_token = Some(market.tokens[1]);
-//             } else {
-//                 pending_current_token = Some(market.tokens[0]);
-//             }
-
-//             // check if something is going on properly
-//             if let Some(current_token) = pending_current_token {
-//                 if current_token
-//                     .contract_address
-//                     .eq(&base_token.contract_address)
-//                     && route_markets.len().ge(&route_restraints.0)
-//                 {
-//                     routes.push(Route {
-//                         markets: route_markets.clone(),
-//                         base_token: base_token,
-//                     });
-//                     // println!("route");
-//                 } else if route_restraints.1 >= 1 && markets.len() > 1 {
-//                     let filtered_markets: Vec<&'static Market> = markets
-//                         .clone()
-//                         .into_iter()
-//                         .filter(|x| x.contract_address.ne(&market.contract_address))
-//                         .collect();
-
-//                     let mut child_routes = generate_internal(
-//                         filtered_markets,
-//                         current_token,
-//                         base_token,
-//                         (route_restraints.0, route_restraints.1 - 1),
-//                         append_one(&route_markets, &market),
-//                     );
-
-//                     routes.append(&mut child_routes);
-//                 }
-//             }
-
-//             routes
-//         })
-//         .collect();
-// }
-
+#[inline(always)]
 fn get_pairable_markets(
     token_in: &'static Token,
     markets: Vec<&'static OrgValue<Market>>,
