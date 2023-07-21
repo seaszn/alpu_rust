@@ -1,4 +1,3 @@
-
 use ethers::providers::Middleware;
 use futures::{SinkExt, StreamExt};
 
@@ -9,33 +8,40 @@ use websocket_lite::{ClientBuilder, Message, Opcode};
 
 use crate::env::{RuntimeCache, RuntimeConfig};
 use crate::exchanges::get_market_reserves;
-use crate::handlers::types::{BalanceChange, RelayMessage};
-use crate::types::{OrganizedList, Reserves};
+use crate::types::{BalanceChange, OrganizedList, RelayMessage, Reserves};
 use crate::{exchanges, log_tracer};
 
-#[inline(always)]
-pub async fn init(
-    sender: Sender<(OrganizedList<Reserves>, Vec<usize>)>,
-    runtime_config: &'static RuntimeConfig,
-    runtime_cache: &'static RuntimeCache,
-) -> websocket_lite::Result<()> {
-    let builder: ClientBuilder = ClientBuilder::from_url(runtime_config.feed_endpoint.clone());
-    let mut stream = builder.async_connect().await?;
+use super::MarketDataFeed;
 
-    while let Some(msg) = stream.next().await {
-        if let Ok(incomming) = msg {
-            match incomming.opcode() {
-                Opcode::Text => {
-                    handle_text_message(incomming, &sender, &runtime_config, &runtime_cache).await
+pub struct ArbitrumDataFeed;
+
+#[async_trait::async_trait]
+impl MarketDataFeed for ArbitrumDataFeed {
+    async fn init(
+        &self,
+        sender: Sender<(OrganizedList<Reserves>, Vec<usize>)>,
+        runtime_config: &'static RuntimeConfig,
+        runtime_cache: &'static RuntimeCache,
+    ) -> websocket_lite::Result<()> {
+        let builder: ClientBuilder = ClientBuilder::from_url(runtime_config.feed_endpoint.clone());
+        let mut stream = builder.async_connect().await?;
+
+        while let Some(msg) = stream.next().await {
+            if let Ok(incomming) = msg {
+                match incomming.opcode() {
+                    Opcode::Text => {
+                        handle_text_message(incomming, &sender, &runtime_config, &runtime_cache)
+                            .await
+                    }
+                    Opcode::Ping => stream.send(Message::pong(incomming.into_data())).await?,
+                    Opcode::Close => break,
+                    Opcode::Pong | Opcode::Binary => {}
                 }
-                Opcode::Ping => stream.send(Message::pong(incomming.into_data())).await?,
-                Opcode::Close => break,
-                Opcode::Pong | Opcode::Binary => {}
             }
         }
-    }
 
-    Ok(())
+        Ok(())
+    }
 }
 
 #[inline(always)]
@@ -81,12 +87,13 @@ async fn handle_text_message(
                                         .await
                                 {
                                     if transaction_logs.len() > 0 {
-                                        let f = exchanges::parse_balance_changes(
-                                            transaction_logs,
-                                            runtime_cache,
+                                        return (
+                                            exchanges::parse_balance_changes(
+                                                &transaction_logs,
+                                                runtime_cache,
+                                            ),
+                                            None,
                                         );
-
-                                        return (f, None);
                                     }
                                 }
                             }
@@ -101,8 +108,8 @@ async fn handle_text_message(
                 let mut balance_changes: Vec<BalanceChange> = vec![];
                 while let Some(Ok((mut changes, reserves))) = call_set.join_next().await {
                     if changes.len() > 0 {
-                            balance_changes.append(&mut changes)
-                    } else if let Some(reserves) = reserves{
+                        balance_changes.append(&mut changes)
+                    } else if let Some(reserves) = reserves {
                         market_reserves = Some(reserves);
                     }
                 }
@@ -113,10 +120,8 @@ async fn handle_text_message(
                         for change in balance_changes {
                             changed_market_ids.push(change.market.id);
                             reserves.update_value_at(change.market.id, |x| {
-                                x.value.0 =
-                                    x.value.0 + change.amount_0_in - change.amount_0_out;
-                                x.value.1 =
-                                    x.value.1 + change.amount_1_in - change.amount_1_out;
+                                x.value.0 = x.value.0 + change.amount_0_in - change.amount_0_out;
+                                x.value.1 = x.value.1 + change.amount_1_in - change.amount_1_out;
                             });
                         }
 

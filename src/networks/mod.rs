@@ -4,7 +4,7 @@ use crate::utils;
 use crate::{exchanges::types::Exchange, types::Token};
 use ethers::prelude::*;
 
-pub use self::arbitrum::CHAIN_ID as arbitrum;
+pub use self::arbitrum::CHAIN_ID as ARBITRUM_CHAIN_ID;
 
 pub struct Network {
     pub chain_id: u32,

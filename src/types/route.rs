@@ -14,6 +14,8 @@ use super::{
     SwapLog, Token,
 };
 
+const ZERO_VALUE: U256 = U256::zero();
+
 #[derive(Debug, Clone)]
 pub struct Route {
     pub markets: Vec<&'static OrgValue<Market>>,
@@ -29,7 +31,7 @@ pub struct RouteResult {
     pub end_balance: U256,
     pub profit_loss: U256,
     pub ref_profit_loss: U256,
-    pub transactions: Vec<SwapLog>,
+    pub transactions: OrganizedList<SwapLog>,
 }
 
 impl Route {
@@ -109,33 +111,34 @@ impl Route {
         mut token_in: &'static Token,
     ) -> Option<RouteResult> {
         let _start_balance = input_amount;
-        let mut swap_transactions: Vec<SwapLog> = vec![];
+        let mut swap_transactions: OrganizedList<SwapLog> = OrganizedList::new();
 
         for market in &self.markets {
-            let swap_amount = input_amount;
-            let input_token = token_in;
-
             let reserves: Reserves = reserve_table[market.id].value;
             let market_value = market.value;
-
             let token_0 = market_value.tokens[0];
-            let token_1 = market_value.tokens[1];
 
-            if input_token == token_0 {
+
+            if token_in == token_0 {
                 input_amount = market_value.amount_out(&reserves, &input_amount);
-                token_in = token_1;
+                token_in = market_value.tokens[1];
+                
+                swap_transactions.add_value(SwapLog {
+                    market: &market,
+                    amount_0_out: ZERO_VALUE,
+                    amount_1_out: input_amount,
+                });
+
             } else {
                 input_amount = market_value.amount_out(&reserves.reverse(), &input_amount);
                 token_in = token_0;
-            }
 
-            swap_transactions.push(SwapLog {
-                market: &market,
-                token_in: input_token,
-                token_out: token_in,
-                amount_in: swap_amount,
-                amount_out: input_amount,
-            });
+                swap_transactions.add_value(SwapLog {
+                    market: &market,
+                    amount_0_out: input_amount,
+                    amount_1_out: ZERO_VALUE,
+                });
+            }
         }
 
         if input_amount > _start_balance {

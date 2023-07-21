@@ -8,7 +8,7 @@ lazy_static! {
     static ref BASE_FEE_MUL: U256 = U256::from(10000u128);
 }
 
-#[derive(Clone, Debug, Copy, PartialEq, Eq)]
+#[derive(Clone, Debug, Copy, PartialEq, Eq,)]
 pub struct Market {
     pub contract_address: Address,
     pub tokens: [&'static Token; 2],
@@ -16,6 +16,14 @@ pub struct Market {
     pub stable: bool,
     pub protocol: Protocol,
     fee_mul: U256,
+}
+
+unsafe impl Send for Market {
+    
+}
+
+unsafe impl Sync for Market {
+    
 }
 
 impl Market {

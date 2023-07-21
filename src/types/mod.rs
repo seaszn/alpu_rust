@@ -7,7 +7,13 @@ mod reserves;
 mod org_list;
 mod swap_log;
 mod price_table;
+mod bundle_execution_call;
+mod balance_change;
+mod relay_message;
 
+pub use balance_change::BalanceChange;
+pub use relay_message::RelayMessage;
+pub use self::bundle_execution_call::*;
 pub use self::price_table::PriceTable;
 pub use self::swap_log::SwapLog;
 pub use self::org_list::OrganizedList;

@@ -1,11 +1,9 @@
 use ethers::types::U256;
 
-use super::{OrgValue, market::Market, Token};
+use super::{market::Market, OrgValue};
 
-pub struct SwapLog{
+pub struct SwapLog {
     pub market: &'static OrgValue<Market>,
-    pub token_in: &'static Token,
-    pub token_out: &'static Token,
-    pub amount_in: U256,
-    pub amount_out: U256,
+    pub amount_0_out: U256,
+    pub amount_1_out: U256,
 }

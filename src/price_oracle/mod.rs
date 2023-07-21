@@ -1,35 +1,51 @@
-use ethers::utils::{parse_units, ParseUnits};
+use std::io::Error;
+
+use ethers::{
+    providers::Middleware,
+    types::U256,
+    utils::{parse_units, ParseUnits},
+};
+use futures::executor::block_on;
 use serde_json::Value;
 
 use crate::{
+    env::RuntimeCache,
     networks::Network,
     types::{PriceTable, Token},
 };
 
 pub struct PriceOracle {
-    pub running: bool,
-
     // private
     network: &'static Network,
+    runtime_cache: &'static RuntimeCache,
     ref_price_table: PriceTable,
+    flash_loan_fee: U256,
+    wallet_balance: U256,
 }
 unsafe impl Send for PriceOracle {}
 
 impl PriceOracle {
-    pub fn new(network: &'static Network) -> PriceOracle {
-        let mut result = PriceOracle {
-            running: false,
-            network,
-            ref_price_table: PriceTable::new(),
-        };
+    pub fn new(
+        network: &'static Network,
+        runtime_cache: &'static Result<RuntimeCache, Error>,
+    ) -> Option<PriceOracle> {
+        if let Ok(cache) = runtime_cache {
+            let mut result = PriceOracle {
+                network,
+                runtime_cache: cache,
+                ref_price_table: PriceTable::new(),
+                flash_loan_fee: U256::zero(),
+                wallet_balance: U256::zero(),
+            };
 
-        result.update_price_table();
-        result.running = true;
+            block_on(result.update_price_table());
+            return Some(result);
+        }
 
-        return result;
+        return None;
     }
 
-    pub fn update_price_table(&mut self) {
+    pub async fn update_price_table(&mut self) {
         if let Ok(json_response) =
             ureq::get("http://api.coinbase.com/v2/exchange-rates?currency=ETH")
                 .call()
@@ -51,7 +67,6 @@ impl PriceOracle {
             let weth_token = &self.network.tokens[0];
 
             let mut new_price_table = PriceTable::new();
-
             for token in base_tokens {
                 let symbol: &String = token.ref_symbol.as_ref().unwrap();
                 let token_ref_price =
@@ -65,10 +80,39 @@ impl PriceOracle {
             }
 
             self.ref_price_table = new_price_table;
+
+            if let Ok(flash_loan_response) = self
+                .runtime_cache
+                .bundle_executor
+                .get_flash_loan_fees()
+                .await
+            {
+                self.flash_loan_fee = U256::from(flash_loan_response)
+            }
+
+            if let Ok(balance_response) = self
+                .runtime_cache
+                .client
+                .get_balance(self.runtime_cache.client.address(), None)
+                .await
+            {
+                self.wallet_balance = balance_response;
+            }
         }
     }
 
+    #[inline(always)]
     pub fn get_ref_price_table(&self) -> &PriceTable {
         return &self.ref_price_table;
+    }
+    
+    #[inline(always)]
+    pub fn get_wallet_balance(&self) -> &U256{
+        return &self.wallet_balance;
+    }
+
+    #[inline(always)]
+    pub fn get_flash_loan_fee(&self) -> &U256{
+        return &self.flash_loan_fee;
     }
 }
