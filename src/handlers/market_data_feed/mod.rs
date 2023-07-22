@@ -5,14 +5,14 @@ use tokio::sync::mpsc::Sender;
 use websocket_lite::Result;
 
 use crate::env::*;
-use crate::types::{OrganizedList, Reserves};
+use crate::types::{OrganizedList, Reserves, BalanceChange};
 
 use crate::networks::ARBITRUM_CHAIN_ID;
 #[async_trait::async_trait]
 pub trait MarketDataFeed{
     async fn init(
         &self,
-        sender: Sender<(OrganizedList<Reserves>, Vec<usize>)>,
+        sender: Sender<Vec<BalanceChange>>,
         runtime_config: &'static RuntimeConfig,
         runtime_cache: &'static RuntimeCache,
     ) -> Result<()>;

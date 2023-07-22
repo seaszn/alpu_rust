@@ -2,7 +2,7 @@ use std::{io::Error, vec};
 
 use ethers::{
     prelude::AbiError,
-    types::Bytes,
+    types::{BlockNumber, Bytes, U64, Transaction},
     types::{H160, U256},
 };
 
@@ -195,7 +195,7 @@ pub async fn get_market_reserves(
     runtime_cache: &'static RuntimeCache,
     runtime_config: &'static RuntimeConfig,
 ) -> OrganizedList<Reserves> {
-    let filtered_markets: Vec<&'static OrgValue<Market>> = markets.filter(|x| {
+    let filtered_markets: Vec<&OrgValue<Market>> = markets.filter(|x| {
         x.value.protocol == Protocol::UniswapV2 || x.value.protocol == Protocol::StableSwap
     });
 

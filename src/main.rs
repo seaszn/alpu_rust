@@ -28,8 +28,6 @@ lazy_static! {
         RuntimeCache::new(&RUNTIME_CONFIG, &RUNTIME_NETWORK);
     static ref RUNTIME_ROUTES: Vec<Route> =
         Route::generate_from_runtime(&RUNTIME_NETWORK, &RUNTIME_CONFIG, &RUNTIME_CACHE);
-    static ref PRICE_ORACLE: Option<PriceOracle> =
-        PriceOracle::new(&RUNTIME_NETWORK, &RUNTIME_CACHE);
 }
 
 #[tokio::main(flavor = "multi_thread")]
@@ -50,17 +48,12 @@ async fn main() {
             println!("Cached {} markets..", runtime_cache.markets.len());
             println!("Cached {} routes..\n", RUNTIME_ROUTES.len());
 
-            if let Some(price_oracle) = &*PRICE_ORACLE {
-                println!("Waiting for validation, this might take a while");
+            // println!("Waiting for validation, this might take a while");
 
-                if let Some(network_handler) = NetworkHandler::from_network(
-                    &RUNTIME_NETWORK,
-                    &RUNTIME_CONFIG,
-                    runtime_cache,
-                    price_oracle,
-                ) {
-                    network_handler.init().await;
-                }
+            if let Some(mut network_handler) =
+                NetworkHandler::from_network(&RUNTIME_NETWORK, &RUNTIME_CONFIG, runtime_cache)
+            {
+                network_handler.init().await;
             }
         }
         Err(error) => {

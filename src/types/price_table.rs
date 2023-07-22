@@ -21,6 +21,11 @@ impl PriceTable {
     }
 
     #[inline(always)]
+    pub fn update_table(&mut self, internal: Vec<(&'static H160, U256)>) {
+        self.internal = internal;
+    }
+
+    #[inline(always)]
     pub fn contains_key(&self, key: &H160) -> bool {
         return self.internal.iter().any(|x| x.0 == key);
     }

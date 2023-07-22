@@ -1,7 +1,12 @@
+use std::process;
+use std::time::Instant;
+
 use ethers::providers::Middleware;
+use futures::executor::block_on;
 use futures::{SinkExt, StreamExt};
 
 use ethers::prelude::*;
+use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 use tokio::sync::mpsc::Sender;
 use tokio::task::JoinSet;
 use websocket_lite::{ClientBuilder, Message, Opcode};
@@ -19,7 +24,7 @@ pub struct ArbitrumDataFeed;
 impl MarketDataFeed for ArbitrumDataFeed {
     async fn init(
         &self,
-        sender: Sender<(OrganizedList<Reserves>, Vec<usize>)>,
+        sender: Sender<Vec<BalanceChange>>,
         runtime_config: &'static RuntimeConfig,
         runtime_cache: &'static RuntimeCache,
     ) -> websocket_lite::Result<()> {
@@ -47,7 +52,7 @@ impl MarketDataFeed for ArbitrumDataFeed {
 #[inline(always)]
 async fn handle_text_message(
     incomming: Message,
-    sender: &Sender<(OrganizedList<Reserves>, Vec<usize>)>,
+    sender: &Sender<Vec<BalanceChange>>,
     runtime_config: &'static RuntimeConfig,
     runtime_cache: &'static RuntimeCache,
 ) {
@@ -55,26 +60,10 @@ async fn handle_text_message(
         if let Some(relay_message) = RelayMessage::from_json(message_text) {
             let transaction_hashes: Vec<H256> = relay_message.decode();
 
-            // let inst = Instant::now();
             if transaction_hashes.len() > 0 {
-                let mut call_set: JoinSet<(Vec<BalanceChange>, Option<OrganizedList<Reserves>>)> =
-                    JoinSet::new();
-
-                //Spawn the task to get the market reserves
-                call_set.spawn(async move {
-                    return (
-                        vec![],
-                        Some(
-                            get_market_reserves(
-                                &runtime_cache.markets,
-                                runtime_cache,
-                                runtime_config,
-                            )
-                            .await,
-                        ),
-                    );
-                });
-
+                let inst = Instant::now();
+                let mut call_set: JoinSet<Vec<BalanceChange>> = JoinSet::new();
+                
                 // Itterate the transaction_hashes for balance changes
                 for tx_hash in transaction_hashes {
                     call_set.spawn(async move {
@@ -87,47 +76,64 @@ async fn handle_text_message(
                                         .await
                                 {
                                     if transaction_logs.len() > 0 {
-                                        return (
-                                            exchanges::parse_balance_changes(
-                                                &transaction_logs,
-                                                runtime_cache,
-                                            ),
-                                            None,
+                                        return exchanges::parse_balance_changes(
+                                            &transaction_logs,
+                                            runtime_cache,
                                         );
                                     }
                                 }
                             }
                         }
 
-                        return (vec![], None);
+                        return vec![];
                     });
                 }
 
                 // Get all the transaction logs of the
-                let mut market_reserves: Option<OrganizedList<Reserves>> = None;
                 let mut balance_changes: Vec<BalanceChange> = vec![];
-                while let Some(Ok((mut changes, reserves))) = call_set.join_next().await {
+                while let Some(Ok(mut changes)) = call_set.join_next().await {
                     if changes.len() > 0 {
-                        balance_changes.append(&mut changes)
-                    } else if let Some(reserves) = reserves {
-                        market_reserves = Some(reserves);
+                        balance_changes.append(&mut changes);
                     }
                 }
 
-                if let Some(mut reserves) = market_reserves {
-                    if balance_changes.len() > 0 && reserves.len() > 0 {
-                        let mut changed_market_ids: Vec<usize> = vec![];
-                        for change in balance_changes {
-                            changed_market_ids.push(change.market.id);
-                            reserves.update_value_at(change.market.id, |x| {
-                                x.value.0 = x.value.0 + change.amount_0_in - change.amount_0_out;
-                                x.value.1 = x.value.1 + change.amount_1_in - change.amount_1_out;
-                            });
-                        }
+                // if let Some(mut reserves) = market_reserves {
+                //     if balance_changes.len() > 0 && reserves.len() > 0 {
+                //         // let mut changed_market_ids: Vec<usize> = vec![];
+                //         for change in balance_changes {
+                //             // println!("{:#?}", change.tx_hash);
+                //             println!("www.arbiscan.io/tx/{:?}", change.tx_hash);
+                //             println!("market address: {:?}", change.market.value.contract_address);
+                //             println!("old reserves: \n{:#?}", reserves[change.market.id]);
 
-                        // println!("balance changes: {:?}", inst.elapsed());
-                        _ = sender.send((reserves, changed_market_ids)).await;
-                    }
+                //             // tx hash
+                //             // market contract address
+                //             // old
+                //             // new with balance changes
+
+                //             let mut f = reserves[change.market.id];
+                //             f.value.0 = (f.value.0 + change.amount_0_in) - change.amount_0_out;
+                //             f.value.1 = (f.value.1 + change.amount_1_in) - change.amount_1_out;
+                //             println!("new reserves: \n{:#?}", f);
+
+                //             println!("change: \n{:#?}", change);
+
+                //             // changed_market_ids.push(change.market.id);
+                //             // reserves.update_value_at(change.market.id, |x| {
+                //             //     x.value.0 = x.value.0 + change.amount_0_in - change.amount_0_out;
+                //             //     x.value.1 = x.value.1 + change.amount_1_in - change.amount_1_out;
+                //             // });
+                //             process::exit(0);
+                //         }
+
+                if balance_changes.len() > 0 {
+
+                    println!("{} balance changes in: {:?}", balance_changes.len(), inst.elapsed());
+                    // _ = sender.send(f).await;
+                    _ = sender.send(balance_changes).await;
+                }
+                else {
+                    println!("empty");
                 }
             }
         }

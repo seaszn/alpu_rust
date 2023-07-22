@@ -1,8 +1,12 @@
-use std::time::Instant;
+use std::{process, time::{Instant, Duration}};
 
 use ethers::{
     prelude::AbiError,
-    types::{Address, Bytes, TransactionRequest, U256},
+    providers::Middleware,
+    types::{
+        transaction::eip2718::TypedTransaction, Address, BlockId, BlockNumber, Bytes,
+        TransactionRequest, U256,
+    },
     utils::format_units,
 };
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
@@ -10,10 +14,13 @@ use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 use crate::{
     env::{RuntimeCache, RuntimeConfig, EXECUTE_TX_BUNDLE_FUNCTION},
-    exchanges::populate_swap,
+    exchanges::{get_market_reserves, populate_swap},
     networks::Network,
     price_oracle::PriceOracle,
-    types::{BundleExecutionCall, OrganizedList, PriceTable, Reserves, RouteResult},
+    types::{
+        market::Market, BalanceChange, BundleExecutionCall, OrgValue, OrganizedList, PriceTable,
+        Reserves, RouteResult,
+    },
     RUNTIME_CACHE, RUNTIME_CONFIG, RUNTIME_ROUTES,
 };
 
@@ -38,7 +45,7 @@ pub struct NetworkHandler {
     /* private */
     runtime_config: &'static RuntimeConfig,
     runtime_cache: &'static RuntimeCache,
-    price_oracle: &'static PriceOracle,
+    price_oracle: PriceOracle,
     data_feed: &'static (dyn MarketDataFeed + Send + Sync),
     base_transaction: TransactionRequest,
 }
@@ -49,9 +56,10 @@ impl NetworkHandler {
         network: &'static Network,
         runtime_config: &'static RuntimeConfig,
         runtime_cache: &'static RuntimeCache,
-        price_oracle: &'static PriceOracle,
     ) -> Option<NetworkHandler> {
         if let Some(data_feed) = get_network_data_feed(network.chain_id) {
+            let price_oracle = PriceOracle::new(network, runtime_cache, runtime_config);
+
             return Some(NetworkHandler {
                 runtime_config,
                 runtime_cache,
@@ -65,13 +73,14 @@ impl NetworkHandler {
     }
 
     #[inline(always)]
-    pub async fn init(&self) {
-        let (sender, mut receiver): (Sender<(OrganizedList<Reserves>, Vec<usize>)>, Receiver<_>) =
-            channel(32);
+    pub async fn init(&mut self) {
+        let (sender, mut receiver): (Sender<Vec<BalanceChange>>, Receiver<_>) = channel(32);
 
         let data_feed = self.data_feed;
         let config_reference = self.runtime_config;
         let cache_reference = self.runtime_cache;
+
+        self.price_oracle.initiate_market_updates(Duration::from_millis(1000));
 
         // initiate the data feed
         _ = tokio::spawn(async move {
@@ -81,11 +90,11 @@ impl NetworkHandler {
         });
 
         let mut first_message = true;
-        while let Some((reserve_table, market_ids)) = receiver.recv().await {
+        while let Some(balance_changes) = receiver.recv().await {
             // Skip the first message, the node's activity has not been whispered yet, so first message is often significantly delayed
             if !first_message {
-                if reserve_table.len() > 0 {
-                    self.handle_market_update(&reserve_table, &market_ids).await;
+                if balance_changes.len() > 0 {
+                    self.handle_market_update(&balance_changes).await;
                 }
             } else {
                 println!("Validation received...\n");
@@ -96,50 +105,98 @@ impl NetworkHandler {
     }
 
     #[inline(always)]
-    async fn handle_market_update(
-        &self,
-        reserve_table: &OrganizedList<(U256, U256)>,
-        market_ids: &Vec<usize>,
-    ) {
-        let inst = Instant::now();
-        let price_table: &PriceTable = self.price_oracle.get_ref_price_table();
+    async fn handle_market_update(&self, balance_changes: &Vec<BalanceChange>) {
+        // let inst = Instant::now();
+        let price_table = self.price_oracle.get_ref_price_table().await;
 
-        let route_results: Vec<RouteResult> = RUNTIME_ROUTES
-            .par_iter()
-            .filter_map(|x| {
-                return x.calculate_result(&reserve_table, price_table, &market_ids);
-            })
-            .collect();
+        // let f = get_market_reserves(
+        //     &self.runtime_cache.markets,
+        //     self.runtime_cache,
+        //     self.runtime_config,
+        // )
+        // .await;
 
-        if route_results.len() > 0 {
-            let mut best_route_result = &route_results[0];
+        // let _route_results: Vec<RouteResult> = RUNTIME_ROUTES
+        //     .par_iter()
+        //     .filter_map(|x| {
+        //         return x.calculate_result(&reserve_table, price_table, &market_ids);
+        //     })
+        //     .collect();
 
-            for i in 1..route_results.len() {
-                let current_route_result = &route_results[i];
-                if current_route_result.ref_profit_loss > best_route_result.ref_profit_loss {
-                    best_route_result = current_route_result;
-                }
-            }
+        // for market_id in market_ids {
+        //     println!("id: {}", market_id);
+        //     println!("market {:#?}", self.runtime_cache.markets[*market_id]);
+        //     println!("{:#?}", f[*market_id]);
+        // }
 
-            if let Ok(transaction_data) =
-                self.build_bundled_transaction(best_route_result, self.runtime_config)
-            {
-                let _transaction: TransactionRequest = TransactionRequest {
-                    data: Some(transaction_data),
-                    ..self.base_transaction.clone()
-                };
+        process::exit(0);
 
-                println!(
-                    "calculated {} / {} routes in {:?} ({} WETH)",
-                    route_results.len(),
-                    RUNTIME_ROUTES.len(),
-                    inst.elapsed(),
-                    format_units(best_route_result.ref_profit_loss, 18).unwrap()
-                );
+        // if route_results.len() > 0 {
+        //     let mut best_route_result: &RouteResult = &route_results[0];
 
-                println!("{:#?}", _transaction);
-            }
-        }
+        //     for i in 1..route_results.len() {
+        //         let current_route_result = &route_results[i];
+        //         if current_route_result.ref_profit_loss > best_route_result.ref_profit_loss {
+        //             best_route_result = current_route_result;
+        //         }
+        //     }
+
+        //     // if let Ok(transaction_data) =
+        //     //     self.build_bundled_transaction(best_route_result, self.runtime_config)
+        //     // {
+        //     //     let raw_transaction: TransactionRequest = TransactionRequest {
+        //     //         data: Some(transaction_data),
+        //     //         gas_price: Some(*self.price_oracle.get_gas_price()),
+        //     //         ..self.base_transaction.clone()
+        //     //     };
+
+        //     //     // let s = self
+        //     //     //     .runtime_cache
+        //     //     //     .client
+        //     //     //     .estimate_gas(
+        //     //     //         &TypedTransaction::Legacy(raw_transaction.clone()),
+        //     //     //         Some(BlockId::Number(BlockNumber::Latest)),
+        //     //     //     )
+        //     //     //     .await;
+
+        //     //     // if (s.is_err()) {
+        //     //         // let market_reserves = get_market_reserves(
+        //     //         //     &self.runtime_cache.markets,
+        //     //         //     self.runtime_cache,
+        //     //         //     self.runtime_config,
+        //     //         // )
+        //     //         // .await;
+        //     //         // let old_reserves: Vec<&Reserves> = best_route_result
+        //     //         //     .route_reserves
+        //     //         //     .iter()
+        //     //         //     .map(|x| &x.0.value)
+        //     //         //     .collect();
+        //     //         // let markets: Vec<&'static OrgValue<Market>> = best_route_result
+        //     //         //     .route_reserves
+        //     //         //     .iter()
+        //     //         //     .map(|x| x.1)
+        //     //         //     .collect();
+        //     //         // for (reserves, market) in &best_route_result.route_reserves{
+        //     //         //     println!("{:#?}", market.value.contract_address);
+        //     //         //     println!("{:#?}", reserves.value);
+        //     //         // }
+
+        //     //         process::exit(1);
+        //     //     // } else {
+        //     //         // println!("{:#?}", s);
+
+        //     //         // println!(
+        //     //         //     "calculated {} / {} routes in {:?} ({} WETH)",
+        //     //         //     route_results.len(),
+        //     //         //     RUNTIME_ROUTES.len(),
+        //     //         //     inst.elapsed(),
+        //     //         //     format_units(best_route_result.ref_profit_loss, 18).unwrap()
+        //     //         // );
+        //     //     // }
+
+        //     //     // println!("{:#?}", _transaction);
+        //     // }
+        // }
     }
 
     #[inline(always)]
@@ -158,10 +215,9 @@ impl NetworkHandler {
 
         for i in 0..transactions.len() {
             let transaction = &transactions[i];
+            targets.push(transaction.value.market.value.contract_address);
 
             if i < transactions.len() - 1 {
-                targets.push(transaction.value.market.value.contract_address);
-
                 if let Ok(swap_data) = populate_swap(
                     &transaction.value,
                     &best_route_result.transactions[i + 1]

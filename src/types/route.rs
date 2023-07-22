@@ -1,6 +1,6 @@
 use std::io::Error;
 
-use ethers::types::U256;
+use ethers::types::{H160, U256};
 use itertools::Itertools;
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 
@@ -32,6 +32,7 @@ pub struct RouteResult {
     pub profit_loss: U256,
     pub ref_profit_loss: U256,
     pub transactions: OrganizedList<SwapLog>,
+    pub route_reserves: Vec<(OrgValue<Reserves>, &'static OrgValue<Market>)>
 }
 
 impl Route {
@@ -118,17 +119,15 @@ impl Route {
             let market_value = market.value;
             let token_0 = market_value.tokens[0];
 
-
             if token_in == token_0 {
                 input_amount = market_value.amount_out(&reserves, &input_amount);
                 token_in = market_value.tokens[1];
-                
+
                 swap_transactions.add_value(SwapLog {
                     market: &market,
                     amount_0_out: ZERO_VALUE,
                     amount_1_out: input_amount,
                 });
-
             } else {
                 input_amount = market_value.amount_out(&reserves.reverse(), &input_amount);
                 token_in = token_0;
@@ -142,6 +141,14 @@ impl Route {
         }
 
         if input_amount > _start_balance {
+         
+         //TODO: REMOVE THIS
+            let route_reserves: Vec<(OrgValue<Reserves>, &'static OrgValue<Market>)> = swap_transactions
+                .iter()
+                .map(|x| (reserve_table[x.id], x.value.market))
+                .sorted_by_key(|x| x.0.id)
+                .collect();
+         
             let profit_loss = input_amount - _start_balance;
             return Some(RouteResult {
                 base_token: self.base_token,
@@ -150,6 +157,7 @@ impl Route {
                 profit_loss,
                 ref_profit_loss: price_table.get_ref_price(self.base_token, profit_loss),
                 transactions: swap_transactions,
+                route_reserves //TODO: REMOVE THIS
             });
         } else {
             None
