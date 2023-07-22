@@ -1,5 +1,3 @@
-use ethers::types::{U64, Transaction};
-
 use crate::types::{OrgValue, market::Market};
 
 #[derive(Debug, Clone)]

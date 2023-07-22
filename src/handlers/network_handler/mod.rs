@@ -1,4 +1,4 @@
-use std::{process, time::{Instant, Duration}};
+use std::{process, time::{Instant, Duration}, thread};
 
 use ethers::{
     prelude::AbiError,
@@ -9,19 +9,20 @@ use ethers::{
     },
     utils::format_units,
 };
+use futures::executor::block_on;
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 use crate::{
     env::{RuntimeCache, RuntimeConfig, EXECUTE_TX_BUNDLE_FUNCTION},
-    exchanges::{get_market_reserves, populate_swap},
+    exchanges::{get_market_reserves, populate_swap, init_exchange_handlers},
     networks::Network,
     price_oracle::PriceOracle,
     types::{
         market::Market, BalanceChange, BundleExecutionCall, OrgValue, OrganizedList, PriceTable,
         Reserves, RouteResult,
     },
-    RUNTIME_CACHE, RUNTIME_CONFIG, RUNTIME_ROUTES,
+    RUNTIME_CACHE, RUNTIME_CONFIG,
 };
 
 use super::{market_data_feed::get_network_data_feed, MarketDataFeed};
@@ -43,9 +44,9 @@ lazy_static! {
 
 pub struct NetworkHandler {
     /* private */
+    price_oracle: PriceOracle,
     runtime_config: &'static RuntimeConfig,
     runtime_cache: &'static RuntimeCache,
-    price_oracle: PriceOracle,
     data_feed: &'static (dyn MarketDataFeed + Send + Sync),
     base_transaction: TransactionRequest,
 }
@@ -74,13 +75,13 @@ impl NetworkHandler {
 
     #[inline(always)]
     pub async fn init(&mut self) {
+        init_exchange_handlers();
+
         let (sender, mut receiver): (Sender<Vec<BalanceChange>>, Receiver<_>) = channel(32);
 
         let data_feed = self.data_feed;
         let config_reference = self.runtime_config;
         let cache_reference = self.runtime_cache;
-
-        self.price_oracle.initiate_market_updates(Duration::from_millis(1000));
 
         // initiate the data feed
         _ = tokio::spawn(async move {
@@ -88,7 +89,7 @@ impl NetworkHandler {
                 .init(sender, config_reference, cache_reference)
                 .await;
         });
-
+        
         let mut first_message = true;
         while let Some(balance_changes) = receiver.recv().await {
             // Skip the first message, the node's activity has not been whispered yet, so first message is often significantly delayed
@@ -97,6 +98,8 @@ impl NetworkHandler {
                     self.handle_market_update(&balance_changes).await;
                 }
             } else {
+                self.price_oracle.initiate();
+                
                 println!("Validation received...\n");
                 println!("Listening to market changes...\n");
                 first_message = false;
@@ -105,10 +108,9 @@ impl NetworkHandler {
     }
 
     #[inline(always)]
-    async fn handle_market_update(&self, balance_changes: &Vec<BalanceChange>) {
+    async fn handle_market_update(&self, _balance_changes: &Vec<BalanceChange>) {
         // let inst = Instant::now();
-        let price_table = self.price_oracle.get_ref_price_table().await;
-
+        // let mut price_table = self.price_oracle.get_market_reserves().await;
         // let f = get_market_reserves(
         //     &self.runtime_cache.markets,
         //     self.runtime_cache,
@@ -129,7 +131,7 @@ impl NetworkHandler {
         //     println!("{:#?}", f[*market_id]);
         // }
 
-        process::exit(0);
+        // process::exit(0);
 
         // if route_results.len() > 0 {
         //     let mut best_route_result: &RouteResult = &route_results[0];

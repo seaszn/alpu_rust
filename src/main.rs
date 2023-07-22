@@ -2,7 +2,6 @@ use std::io::Error;
 
 use env::{RuntimeCache, RuntimeConfig};
 use networks::Network;
-use price_oracle::PriceOracle;
 use types::Route;
 
 use crate::{exchanges::init_exchange_handlers, handlers::NetworkHandler};

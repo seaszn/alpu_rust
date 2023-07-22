@@ -83,10 +83,21 @@ where
     }
 
     #[inline(always)]
+    pub fn to_raw_vec(&self) -> &Vec<OrgValue<T>> {
+        return &self.internal;
+    }
+
+    #[inline(always)]
     pub fn contains_key(&mut self, id: usize) -> bool {
         self.sort();
         return self.contains_key_unsorted(id);
     }
+    
+    #[inline(always)]
+    pub fn update_all(&mut self, other: &mut OrganizedList<T>){
+        self.internal.clear();
+        self.internal.append(&mut other.internal);
+    } 
 
     #[inline(always)]
     pub fn contains_key_unsorted(&self, id: usize) -> bool {

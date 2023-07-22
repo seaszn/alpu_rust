@@ -1,19 +1,15 @@
-use std::process;
 use std::time::Instant;
 
 use ethers::providers::Middleware;
-use futures::executor::block_on;
 use futures::{SinkExt, StreamExt};
 
 use ethers::prelude::*;
-use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 use tokio::sync::mpsc::Sender;
 use tokio::task::JoinSet;
 use websocket_lite::{ClientBuilder, Message, Opcode};
 
 use crate::env::{RuntimeCache, RuntimeConfig};
-use crate::exchanges::get_market_reserves;
-use crate::types::{BalanceChange, OrganizedList, RelayMessage, Reserves};
+use crate::types::{BalanceChange,  RelayMessage};
 use crate::{exchanges, log_tracer};
 
 use super::MarketDataFeed;
@@ -35,7 +31,7 @@ impl MarketDataFeed for ArbitrumDataFeed {
             if let Ok(incomming) = msg {
                 match incomming.opcode() {
                     Opcode::Text => {
-                        handle_text_message(incomming, &sender, &runtime_config, &runtime_cache)
+                        handle_text_message(incomming, &sender, &runtime_cache)
                             .await
                     }
                     Opcode::Ping => stream.send(Message::pong(incomming.into_data())).await?,
@@ -53,7 +49,6 @@ impl MarketDataFeed for ArbitrumDataFeed {
 async fn handle_text_message(
     incomming: Message,
     sender: &Sender<Vec<BalanceChange>>,
-    runtime_config: &'static RuntimeConfig,
     runtime_cache: &'static RuntimeCache,
 ) {
     if let Some(message_text) = incomming.as_text() {
@@ -97,43 +92,10 @@ async fn handle_text_message(
                     }
                 }
 
-                // if let Some(mut reserves) = market_reserves {
-                //     if balance_changes.len() > 0 && reserves.len() > 0 {
-                //         // let mut changed_market_ids: Vec<usize> = vec![];
-                //         for change in balance_changes {
-                //             // println!("{:#?}", change.tx_hash);
-                //             println!("www.arbiscan.io/tx/{:?}", change.tx_hash);
-                //             println!("market address: {:?}", change.market.value.contract_address);
-                //             println!("old reserves: \n{:#?}", reserves[change.market.id]);
-
-                //             // tx hash
-                //             // market contract address
-                //             // old
-                //             // new with balance changes
-
-                //             let mut f = reserves[change.market.id];
-                //             f.value.0 = (f.value.0 + change.amount_0_in) - change.amount_0_out;
-                //             f.value.1 = (f.value.1 + change.amount_1_in) - change.amount_1_out;
-                //             println!("new reserves: \n{:#?}", f);
-
-                //             println!("change: \n{:#?}", change);
-
-                //             // changed_market_ids.push(change.market.id);
-                //             // reserves.update_value_at(change.market.id, |x| {
-                //             //     x.value.0 = x.value.0 + change.amount_0_in - change.amount_0_out;
-                //             //     x.value.1 = x.value.1 + change.amount_1_in - change.amount_1_out;
-                //             // });
-                //             process::exit(0);
-                //         }
-
                 if balance_changes.len() > 0 {
 
                     println!("{} balance changes in: {:?}", balance_changes.len(), inst.elapsed());
-                    // _ = sender.send(f).await;
                     _ = sender.send(balance_changes).await;
-                }
-                else {
-                    println!("empty");
                 }
             }
         }

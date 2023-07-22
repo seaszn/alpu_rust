@@ -2,7 +2,7 @@ use std::{io::Error, vec};
 
 use ethers::{
     prelude::AbiError,
-    types::{BlockNumber, Bytes, U64, Transaction},
+    types::Bytes,
     types::{H160, U256},
 };
 
