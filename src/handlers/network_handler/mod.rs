@@ -83,12 +83,19 @@ impl NetworkHandler {
         let config_reference = self.runtime_config;
         let cache_reference = self.runtime_cache;
 
-        // initiate the data feed
-        _ = tokio::spawn(async move {
-            _ = data_feed
-                .init(sender, config_reference, cache_reference)
-                .await;
+        // initiate the data_feed
+        let handle = tokio::runtime::Handle::current();
+        thread::spawn(move || {
+            handle.spawn(async {
+                _ = data_feed
+                    .init(sender, config_reference, cache_reference)
+                    .await;
+            });
+
+            let _guard = handle.enter();
         });
+        
+        println!("Waiting for validation, this might take a while...");
         
         let mut first_message = true;
         while let Some(balance_changes) = receiver.recv().await {
@@ -109,8 +116,9 @@ impl NetworkHandler {
 
     #[inline(always)]
     async fn handle_market_update(&self, _balance_changes: &Vec<BalanceChange>) {
-        // let inst = Instant::now();
-        // let mut price_table = self.price_oracle.get_market_reserves().await;
+        let inst = Instant::now();
+        let _ = self.price_oracle.get_market_reserves().await;
+        println!("{:?}", inst.elapsed());
         // let f = get_market_reserves(
         //     &self.runtime_cache.markets,
         //     self.runtime_cache,
