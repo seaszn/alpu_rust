@@ -1,46 +1,36 @@
-use std::{process, time::{Instant, Duration}, thread};
+use std::thread;
 
 use ethers::{
     prelude::AbiError,
-    providers::Middleware,
-    types::{
-        transaction::eip2718::TypedTransaction, Address, BlockId, BlockNumber, Bytes,
-        TransactionRequest, U256,
-    },
-    utils::format_units,
+    types::{Address, Bytes},
 };
-use futures::executor::block_on;
-use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 use crate::{
     env::{RuntimeCache, RuntimeConfig, EXECUTE_TX_BUNDLE_FUNCTION},
-    exchanges::{get_market_reserves, populate_swap, init_exchange_handlers},
+    exchanges::{init_exchange_handlers, populate_swap},
+    log_tracer::{self},
     networks::Network,
     price_oracle::PriceOracle,
-    types::{
-        market::Market, BalanceChange, BundleExecutionCall, OrgValue, OrganizedList, PriceTable,
-        Reserves, RouteResult,
-    },
-    RUNTIME_CACHE, RUNTIME_CONFIG,
+    types::{BalanceChange, BundleExecutionCall, RouteResult},
 };
 
 use super::{market_data_feed::get_network_data_feed, MarketDataFeed};
 
-lazy_static! {
-    static ref BASE_TRANSACTION: TransactionRequest = TransactionRequest {
-        from: Some(RUNTIME_CACHE.as_ref().unwrap().client.address()),
-        to: Some(ethers::types::NameOrAddress::Address(
-            RUNTIME_CONFIG.executor_address,
-        )),
-        gas: None,
-        gas_price: None,
-        value: None,
-        data: None,
-        chain_id: None,
-        nonce: None,
-    };
-}
+// lazy_static! {
+//     static ref BASE_TRANSACTION: TransactionRequest = TransactionRequest {
+//         from: Some(RUNTIME_CACHE.as_ref().unwrap().client.address()),
+//         to: Some(ethers::types::NameOrAddress::Address(
+//             RUNTIME_CONFIG.executor_address,
+//         )),
+//         gas: None,
+//         gas_price: None,
+//         value: None,
+//         data: None,
+//         chain_id: None,
+//         nonce: None,
+//     };
+// }
 
 pub struct NetworkHandler {
     /* private */
@@ -48,7 +38,6 @@ pub struct NetworkHandler {
     runtime_config: &'static RuntimeConfig,
     runtime_cache: &'static RuntimeCache,
     data_feed: &'static (dyn MarketDataFeed + Send + Sync),
-    base_transaction: TransactionRequest,
 }
 
 impl NetworkHandler {
@@ -66,7 +55,6 @@ impl NetworkHandler {
                 runtime_cache,
                 price_oracle,
                 data_feed,
-                base_transaction: BASE_TRANSACTION.clone(),
             });
         }
 
@@ -76,6 +64,7 @@ impl NetworkHandler {
     #[inline(always)]
     pub async fn init(&mut self) {
         init_exchange_handlers();
+        log_tracer::init();
 
         let (sender, mut receiver): (Sender<Vec<BalanceChange>>, Receiver<_>) = channel(32);
 
@@ -94,31 +83,20 @@ impl NetworkHandler {
 
             let _guard = handle.enter();
         });
-        
-        println!("Waiting for validation, this might take a while...");
-        
-        let mut first_message = true;
+
         while let Some(balance_changes) = receiver.recv().await {
-            // Skip the first message, the node's activity has not been whispered yet, so first message is often significantly delayed
-            if !first_message {
-                if balance_changes.len() > 0 {
-                    self.handle_market_update(&balance_changes).await;
-                }
-            } else {
-                self.price_oracle.initiate();
-                
-                println!("Validation received...\n");
-                println!("Listening to market changes...\n");
-                first_message = false;
+            if balance_changes.len() > 0 {
+                self.handle_market_update(&balance_changes).await;
             }
         }
     }
 
     #[inline(always)]
     async fn handle_market_update(&self, _balance_changes: &Vec<BalanceChange>) {
-        let inst = Instant::now();
-        let _ = self.price_oracle.get_market_reserves().await;
-        println!("{:?}", inst.elapsed());
+        // let inst = Instant::now();
+        let mut _reserve_table = self.price_oracle.get_market_reserves().await;
+        // println!("{:?}", inst.elapsed());
+
         // let f = get_market_reserves(
         //     &self.runtime_cache.markets,
         //     self.runtime_cache,

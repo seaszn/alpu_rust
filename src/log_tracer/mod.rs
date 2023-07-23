@@ -61,6 +61,10 @@ lazy_static! {
     };
 }
 
+pub fn init(){
+    let _ = CALL_OPTIONS.state_overrides;
+}
+
 #[inline(always)]
 pub async fn trace_transaction(
     tx: &mut Transaction,
