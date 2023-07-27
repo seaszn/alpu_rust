@@ -1,5 +1,3 @@
-use std::ops::Sub;
-
 use crate::{
     env::RuntimeCache,
     types::{market::Market, TransactionLog},
@@ -9,7 +7,7 @@ use ethers::{
     providers::Middleware,
     types::{
         BlockId, BlockNumber, GethDebugTracerType, GethDebugTracingCallOptions,
-        GethDebugTracingOptions, GethTrace, NameOrAddress, Transaction, TransactionRequest,
+        GethDebugTracingOptions, GethTrace, NameOrAddress, Transaction, TransactionRequest, Block, H256,
     },
 };
 
@@ -61,7 +59,7 @@ lazy_static! {
     };
 }
 
-pub fn init(){
+pub fn init() {
     let _ = CALL_OPTIONS.state_overrides;
 }
 
@@ -69,8 +67,10 @@ pub fn init(){
 pub async fn trace_transaction(
     tx: &mut Transaction,
     runtime_cache: &'static RuntimeCache,
+    block_number: Block<H256>,
 ) -> Option<Vec<TransactionLog>> {
     // get the transaction traces
+
     if let Ok(geth_trace) = runtime_cache
         .client
         .debug_trace_call(
@@ -84,9 +84,7 @@ pub async fn trace_transaction(
                 nonce: None,
                 chain_id: None,
             },
-            Some(BlockId::Number(BlockNumber::Number(
-                tx.block_number.unwrap().sub(1),
-            ))),
+            Some(BlockId::Number(BlockNumber::Number(block_number.number.unwrap()))),
             CALL_OPTIONS.clone(),
         )
         .await

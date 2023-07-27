@@ -144,6 +144,7 @@ trait ProtocolHandler {
 
 */
 
+#[inline(always)]
 pub async fn get_exchange_markets(
     network: &'static Network,
     runtime_cache: &RuntimeCache,

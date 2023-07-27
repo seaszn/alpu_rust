@@ -235,16 +235,16 @@ pub async fn get_markets(
 
     if let Ok(market_count) = factory_contract.all_pairs_length().await {
         let total_market_count: u128 = market_count.as_u128();
-
+        
         for chunk in &(0..total_market_count)
-            .into_iter()
-            .chunks(runtime_config.large_chunk_size)
+        .into_iter()
+        .chunks(runtime_config.large_chunk_size)
         {
             let (start, stop) = {
                 let chunk = chunk.collect_vec();
                 (U256::from(chunk[0]), U256::from(*chunk.last().unwrap()))
             };
-
+            
             match runtime_cache
                 .uniswap_query
                 .get_uniswap_v2_markets(exchange.factory_address, start, stop)

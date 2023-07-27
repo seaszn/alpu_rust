@@ -1,10 +1,13 @@
 use ethers::providers::Middleware;
+use ethers::types::Block;
+use ethers::types::H256;
 use ethers::types::U256;
 use ethers::utils::parse_units;
 use ethers::utils::ParseUnits;
 use serde_json::Value;
 use std::thread;
 use std::time::Duration;
+use std::time::Instant;
 use tokio::runtime::Handle;
 use tokio::sync::RwLock;
 
@@ -24,6 +27,7 @@ lazy_static! {
     static ref GAS_PRICE: RwLock<U256> =
         RwLock::new(U256::from(parse_units("0.1", "gwei").unwrap()));
     static ref REF_PRICE_TABLE: RwLock<PriceTable> = RwLock::new(PriceTable::new());
+    static ref BLOCK_NUMBER: RwLock<Option<Block<H256>>> = RwLock::new(None);
 }
 
 pub struct PriceOracle {
@@ -65,12 +69,13 @@ impl PriceOracle {
 
         let handle: Handle = Handle::current();
         let mut run_interval = tokio::time::interval(interval);
-        
+
         self.market_join_handle = Some(thread::spawn(move || {
             handle.spawn(async move {
                 loop {
                     run_interval.tick().await;
 
+                    let inst = Instant::now();
                     let mut reserve_table: crate::types::OrganizedList<(U256, U256)> =
                         get_market_reserves(
                             &cache_reference.markets,
@@ -78,10 +83,21 @@ impl PriceOracle {
                             &config_reference,
                         )
                         .await;
-
                     {
                         let mut w_refrence = MARKET_RESERVE_TABLE.write().await;
                         w_refrence.update_all(&mut reserve_table);
+                    }
+                    println!("{:?}", inst.elapsed());
+
+                    let block: Block<H256> = cache_reference
+                        .client
+                        .get_block(cache_reference.client.get_block_number().await.unwrap())
+                        .await
+                        .unwrap()
+                        .unwrap();
+                    {
+                        let mut w_refrence = BLOCK_NUMBER.write().await;
+                        *w_refrence = Some(block);
                     }
                 }
             });
@@ -161,7 +177,6 @@ impl PriceOracle {
                         run_interval.tick().await;
                     }
                 }
-
             });
 
             let _guard = handle.enter();
@@ -186,5 +201,10 @@ impl PriceOracle {
     #[inline(always)]
     pub async fn get_gas_price(&self) -> U256 {
         return GAS_PRICE.read().await.clone();
+    }
+
+    #[inline(always)]
+    pub async fn get_block_number() -> Option<Block<H256>> {
+        return BLOCK_NUMBER.read().await.clone();
     }
 }

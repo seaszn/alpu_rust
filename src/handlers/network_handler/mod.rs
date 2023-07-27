@@ -1,4 +1,4 @@
-use std::thread;
+use std::{thread, time::Instant};
 
 use ethers::{
     prelude::AbiError,
@@ -33,7 +33,6 @@ use super::{market_data_feed::get_network_data_feed, MarketDataFeed};
 // }
 
 pub struct NetworkHandler {
-    /* private */
     price_oracle: PriceOracle,
     runtime_config: &'static RuntimeConfig,
     runtime_cache: &'static RuntimeCache,
@@ -65,6 +64,7 @@ impl NetworkHandler {
     pub async fn init(&mut self) {
         init_exchange_handlers();
         log_tracer::init();
+        self.price_oracle.initiate();
 
         let (sender, mut receiver): (Sender<Vec<BalanceChange>>, Receiver<_>) = channel(32);
 
@@ -75,7 +75,7 @@ impl NetworkHandler {
         // initiate the data_feed
         let handle = tokio::runtime::Handle::current();
         thread::spawn(move || {
-            handle.spawn(async {
+            handle.spawn(async move {
                 _ = data_feed
                     .init(sender, config_reference, cache_reference)
                     .await;
@@ -93,9 +93,9 @@ impl NetworkHandler {
 
     #[inline(always)]
     async fn handle_market_update(&self, _balance_changes: &Vec<BalanceChange>) {
-        // let inst = Instant::now();
+        let inst = Instant::now();
         let mut _reserve_table = self.price_oracle.get_market_reserves().await;
-        // println!("{:?}", inst.elapsed());
+        println!("{:?}", inst.elapsed());
 
         // let f = get_market_reserves(
         //     &self.runtime_cache.markets,

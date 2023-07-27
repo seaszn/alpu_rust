@@ -1,10 +1,13 @@
 use base64::engine::general_purpose;
-use ethers::types::{Address, H256};
+use ethers::types::{Address, Block, Transaction, H256};
 use ethers::utils::keccak256;
 use serde;
 use serde::Deserialize;
 extern crate base64;
 use base64::Engine;
+use ethers::utils::rlp::*;
+
+use super::TransactionDecodeResult;
 
 #[derive(Debug, Deserialize, PartialEq, Eq)]
 pub enum L1MessageType {
@@ -80,20 +83,45 @@ impl RelayMessage {
     }
 
     #[inline(always)]
-    pub fn decode(&self) -> Vec<H256> {
+    pub fn decode(&self, block: &Block<H256>) -> Vec<TransactionDecodeResult> {
         if self.messages.len() > 0 {
-            let mut result: Vec<H256> = vec![];
+            let mut result: Vec<TransactionDecodeResult> = vec![];
 
-            for message in &self.messages{
-                if let Ok(data) = general_purpose::STANDARD.decode(&message.message.message.l2_message){
+            for message in &self.messages {
+                if let Ok(data) =
+                    general_purpose::STANDARD.decode(&message.message.message.l2_message)
+                {
                     let (message_kind, message_data) = data.split_first().unwrap();
                     if i8::from_be_bytes([*message_kind]) == L2MessageType::SignedTx as i8 {
-                        result.push(H256::from(keccak256(message_data)))
+                        let hash = H256::from(keccak256(message_data));
+
+                        if let Ok(transaction) = Transaction::decode(&Rlp::new(message_data)).or(
+                            Transaction::decode(&Rlp::new(data.split_first().unwrap().1)),
+                        ) {
+                            if let Ok(from_address) = transaction.recover_from() {
+                                result.push(TransactionDecodeResult {
+                                    hash,
+                                    transaction: Transaction {
+                                        from: from_address,
+                                        gas_price: Some(block.base_fee_per_gas.unwrap()),
+                                        gas: transaction.gas,
+                                        max_fee_per_gas: None,
+                                        max_priority_fee_per_gas: None,
+                                        access_list: None,
+                                        hash: transaction.hash,
+                                        transaction_index: None,
+                                        transaction_type: None,
+                                        chain_id: None,
+                                        ..transaction
+                                    },
+                                });
+                            }
+                        }
                     }
                 }
             }
 
-            return  result;
+            return result;
         }
 
         return vec![];
