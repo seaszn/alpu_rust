@@ -47,7 +47,7 @@ async fn main() {
             println!("Cached {} markets..", runtime_cache.markets.len());
             println!("Cached {} routes..\n", RUNTIME_ROUTES.len());
 
-            // println!("Waiting for validation, this might take a while");
+            println!("Waiting for validation, this might take a while...");
 
             if let Some(mut network_handler) =
                 NetworkHandler::from_network(&RUNTIME_NETWORK, &RUNTIME_CONFIG, runtime_cache)

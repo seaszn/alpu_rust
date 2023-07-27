@@ -1,5 +1,4 @@
 use std::time::Instant;
-
 use futures::{SinkExt, StreamExt};
 
 use tokio::sync::mpsc::Sender;
@@ -7,9 +6,8 @@ use tokio::task::JoinSet;
 use websocket_lite::{ClientBuilder, Message, Opcode};
 
 use crate::env::{RuntimeCache, RuntimeConfig};
-use crate::price_oracle::PriceOracle;
 use crate::types::{BalanceChange, RelayMessage, TransactionDecodeResult};
-use crate::{exchanges, log_tracer};
+use crate::{exchanges, log_tracer, price_oracle};
 
 use super::MarketDataFeed;
 
@@ -47,57 +45,55 @@ async fn handle_text_message(
     sender: &Sender<Vec<BalanceChange>>,
     runtime_cache: &'static RuntimeCache,
 ) {
-    if let Some(block) = PriceOracle::get_block_number().await {
-        if let Some(message_text) = incomming.as_text() {
-            if let Some(relay_message) = RelayMessage::from_json(message_text) {
-                
-                let decode_results: Vec<TransactionDecodeResult> = relay_message.decode(&block);
+    if let Some(message_text) = incomming.as_text() {
+        if let Some(relay_message) = RelayMessage::from_json(message_text) {
+            let decode_results: Vec<TransactionDecodeResult> = relay_message.decode();
 
-                if decode_results.len() > 0 {
-                    let inst = Instant::now();
-                    let mut call_set: JoinSet<Vec<BalanceChange>> = JoinSet::new();
+            if decode_results.len() > 0 {
+                let inst = Instant::now();
+                let mut call_set: JoinSet<Vec<BalanceChange>> = JoinSet::new();
+                let block_number = *price_oracle::PriceOracle::get_block_number().read().await;
 
-                    // Itterate the transaction_hashes for balance changes
-                    for mut decode_result in decode_results {
-                        let block_clone = block.clone();
-                        call_set.spawn(async move {
-                            if decode_result.transaction.to.is_some() {
-                                if let Some(transaction_logs) = log_tracer::trace_transaction(
-                                    &mut decode_result.transaction,
-                                    runtime_cache,
-                                    block_clone,
-                                )
-                                .await
-                                {
-                                    if transaction_logs.len() > 0 {
-                                        return exchanges::parse_balance_changes(
-                                            &transaction_logs,
-                                            runtime_cache,
-                                        );
-                                    }
+                for mut decode_result in decode_results {
+                    call_set.spawn(async move {
+                        decode_result.transaction.block_number = Some(block_number);
+
+                        if decode_result.transaction.to.is_some() {
+                            if let Some(transaction_logs) = log_tracer::trace_transaction(
+                                &mut decode_result.transaction,
+                                runtime_cache,
+                            )
+                            .await
+                            {
+                                if transaction_logs.len() > 0 {
+                                    return exchanges::parse_balance_changes(
+                                        &transaction_logs,
+                                        runtime_cache,
+                                    );
                                 }
                             }
-
-                            return vec![];
-                        });
-                    }
-
-                    // Get all the transaction logs of the
-                    let mut balance_changes: Vec<BalanceChange> = vec![];
-                    while let Some(Ok(mut changes)) = call_set.join_next().await {
-                        if changes.len() > 0 {
-                            balance_changes.append(&mut changes);
                         }
-                    }
 
-                    if balance_changes.len() > 0 {
-                        println!(
-                            "{} balance changes in: {:?}",
-                            balance_changes.len(),
-                            inst.elapsed()
-                        );
-                        _ = sender.send(balance_changes).await;
+                        return vec![];
+                    });
+                }
+                // Get all the transaction logs of the
+
+                let mut balance_changes: Vec<BalanceChange> = vec![];
+                while let Some(Ok(mut changes)) = call_set.join_next().await {
+                    if changes.len() > 0 {
+                        balance_changes.append(&mut changes);
                     }
+                }
+
+                if balance_changes.len() > 0 {
+                    println!(
+                        "handled {} balances changes in: {:?}",
+                        balance_changes.len(),
+                        inst.elapsed()
+                    );
+
+                    _ = sender.send(balance_changes).await;
                 }
             }
         }

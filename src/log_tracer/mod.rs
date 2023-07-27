@@ -7,7 +7,7 @@ use ethers::{
     providers::Middleware,
     types::{
         BlockId, BlockNumber, GethDebugTracerType, GethDebugTracingCallOptions,
-        GethDebugTracingOptions, GethTrace, NameOrAddress, Transaction, TransactionRequest, Block, H256,
+        GethDebugTracingOptions, GethTrace, NameOrAddress, Transaction, TransactionRequest
     },
 };
 
@@ -67,7 +67,6 @@ pub fn init() {
 pub async fn trace_transaction(
     tx: &mut Transaction,
     runtime_cache: &'static RuntimeCache,
-    block_number: Block<H256>,
 ) -> Option<Vec<TransactionLog>> {
     // get the transaction traces
 
@@ -84,7 +83,8 @@ pub async fn trace_transaction(
                 nonce: None,
                 chain_id: None,
             },
-            Some(BlockId::Number(BlockNumber::Number(block_number.number.unwrap()))),
+            // Some(BlockId::Number(BlockNumber::Latest)),
+            Some(BlockId::Number(BlockNumber::Number(tx.block_number.unwrap() - 1))),
             CALL_OPTIONS.clone(),
         )
         .await

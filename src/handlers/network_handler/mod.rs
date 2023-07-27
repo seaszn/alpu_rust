@@ -1,9 +1,10 @@
-use std::{thread, time::Instant};
+use std::{process, thread, time::Instant};
 
 use ethers::{
     prelude::AbiError,
     types::{Address, Bytes},
 };
+use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 use crate::{
@@ -12,7 +13,8 @@ use crate::{
     log_tracer::{self},
     networks::Network,
     price_oracle::PriceOracle,
-    types::{BalanceChange, BundleExecutionCall, RouteResult},
+    types::{BalanceChange, BundleExecutionCall, Reserves, RouteResult},
+    RUNTIME_ROUTES,
 };
 
 use super::{market_data_feed::get_network_data_feed, MarketDataFeed};
@@ -84,25 +86,69 @@ impl NetworkHandler {
             let _guard = handle.enter();
         });
 
+        let mut switch = true;
         while let Some(balance_changes) = receiver.recv().await {
-            if balance_changes.len() > 0 {
-                self.handle_market_update(&balance_changes).await;
+            if switch == true {
+                switch = false;
+                println!("Validation received...\n");
+                println!("Listening to market updates...\n")
+            } else {
+                if balance_changes.len() > 0 {
+                    self.handle_market_update(&balance_changes).await;
+                }
             }
         }
     }
 
     #[inline(always)]
-    async fn handle_market_update(&self, _balance_changes: &Vec<BalanceChange>) {
-        let inst = Instant::now();
-        let mut _reserve_table = self.price_oracle.get_market_reserves().await;
-        println!("{:?}", inst.elapsed());
+    async fn handle_market_update(&self, balance_changes: &Vec<BalanceChange>) {
+        let mut reserve_table = self.price_oracle.get_market_reserves().await;
 
-        // let f = get_market_reserves(
+        for balance_change in balance_changes {
+            let reserves = reserve_table[balance_change.market.id].value;
+            reserve_table[balance_change.market.id].value = (
+                (reserves.0 + balance_change.amount_0_in) - balance_change.amount_0_out,
+                (reserves.1 + balance_change.amount_1_in) - balance_change.amount_1_out,
+            )
+        }
+
+        // let inst = Instant::now();
+        // let f: crate::types::OrganizedList<(ethers::types::U256, ethers::types::U256)> =
+        // get_market_reserves(
         //     &self.runtime_cache.markets,
         //     self.runtime_cache,
         //     self.runtime_config,
         // )
         // .await;
+        // println!("{:?}", inst.elapsed());
+
+        // for i in 0..reserve_table.len() {
+        //     let old_reserves = reserve_table.to_raw_vec()[i];
+        //     let new_reserves = f.to_raw_vec()[i];
+
+        //     if !old_reserves.value.0.eq(&new_reserves.value.0)
+        //         || !old_reserves.value.1.eq(&new_reserves.value.1)
+        //     {
+        //         println!(
+        //             "{:?}",
+        //             self.runtime_cache.markets[old_reserves.id]
+        //                 .value
+        //                 .contract_address
+        //         );
+        //         println!("{:#?}", old_reserves);
+        //         println!("{:#?}", new_reserves);
+        //         println!(
+        //             "{:#?}",
+        //             balance_changes
+        //                 .iter()
+        //                 .find(|x| x.market.id == old_reserves.id)
+        //         );
+        //     }
+        // }
+        // if _reserve_table == f {
+        //     println!("t");
+        //     process::exit(1);
+        // }
 
         // let _route_results: Vec<RouteResult> = RUNTIME_ROUTES
         //     .par_iter()
@@ -148,26 +194,27 @@ impl NetworkHandler {
         //     //     //     .await;
 
         //     //     // if (s.is_err()) {
-        //     //         // let market_reserves = get_market_reserves(
-        //     //         //     &self.runtime_cache.markets,
-        //     //         //     self.runtime_cache,
-        //     //         //     self.runtime_config,
-        //     //         // )
-        //     //         // .await;
-        //     //         // let old_reserves: Vec<&Reserves> = best_route_result
-        //     //         //     .route_reserves
-        //     //         //     .iter()
-        //     //         //     .map(|x| &x.0.value)
-        //     //         //     .collect();
-        //     //         // let markets: Vec<&'static OrgValue<Market>> = best_route_result
-        //     //         //     .route_reserves
-        //     //         //     .iter()
-        //     //         //     .map(|x| x.1)
-        //     //         //     .collect();
-        //     //         // for (reserves, market) in &best_route_result.route_reserves{
-        //     //         //     println!("{:#?}", market.value.contract_address);
-        //     //         //     println!("{:#?}", reserves.value);
-        //     //         // }
+        // let market_reserves = get_market_reserves(
+        //     &self.runtime_cache.markets,
+        //     self.runtime_cache,
+        //     self.runtime_config,
+        // )
+        // .await;
+
+        // // let old_reserves: Vec<&Reserves> = best_route_result
+        // //     .route_reserves
+        // //     .iter()
+        // //     .map(|x| &x.0.value)
+        // //     .collect();
+        // let markets: Vec<&'static OrgValue<Market>> = best_route_result
+        //     .route_reserves
+        //     .iter()
+        //     .map(|x| x.1)
+        //     .collect();
+        // for (reserves, market) in &best_route_result.route_reserves {
+        //     println!("{:#?}", market.value.contract_address);
+        //     println!("{:#?}", reserves.value);
+        // }
 
         //     //         process::exit(1);
         //     //     // } else {

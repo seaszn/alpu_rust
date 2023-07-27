@@ -1,5 +1,5 @@
 use base64::engine::general_purpose;
-use ethers::types::{Address, Block, Transaction, H256};
+use ethers::types::{Address, Transaction, H256};
 use ethers::utils::keccak256;
 use serde;
 use serde::Deserialize;
@@ -83,7 +83,7 @@ impl RelayMessage {
     }
 
     #[inline(always)]
-    pub fn decode(&self, block: &Block<H256>) -> Vec<TransactionDecodeResult> {
+    pub fn decode(&self) -> Vec<TransactionDecodeResult> {
         if self.messages.len() > 0 {
             let mut result: Vec<TransactionDecodeResult> = vec![];
 
@@ -103,7 +103,7 @@ impl RelayMessage {
                                     hash,
                                     transaction: Transaction {
                                         from: from_address,
-                                        gas_price: Some(block.base_fee_per_gas.unwrap()),
+                                        gas_price: None,
                                         gas: transaction.gas,
                                         max_fee_per_gas: None,
                                         max_priority_fee_per_gas: None,

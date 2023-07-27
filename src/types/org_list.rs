@@ -1,5 +1,7 @@
 use std::{ops::*, vec};
 
+use super::Reserves;
+
 #[derive(Clone, Debug)]
 pub struct OrganizedList<T>
 where
@@ -26,10 +28,37 @@ where
     T: Send,
 {
     type Target = Vec<OrgValue<T>>;
-
+    
     #[inline(always)]
     fn deref(&self) -> &Self::Target {
         &self.internal
+    }
+}
+
+impl<T> DerefMut for OrganizedList<T>
+where
+T: Send,
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        return &mut self.internal;
+    }
+}
+
+
+impl PartialEq for OrganizedList<Reserves> {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        if self.internal.len() != other.internal.len(){
+            return false;
+        }
+
+        for i in 0..other.internal.len(){
+            if !self.internal[i].value.0.eq(&other.internal[i].value.0) || !self.internal[i].value.1.eq(&other.internal[i].value.1) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }
 
