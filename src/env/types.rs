@@ -5,7 +5,7 @@ use ethers::{prelude::SignerMiddleware, providers::Provider};
 
 use super::cache::{BundleExecutor, UniswapQuery};
 
-pub type RuntimeClient = SignerMiddleware<Provider<Http>, Wallet<SigningKey>>;
+pub type RuntimeClient = SignerMiddleware<Provider<Ws>, Wallet<SigningKey>>;
 pub type BundleExecutorContract = BundleExecutor<RuntimeClient>;
 pub type UniswapQueryContract = UniswapQuery<RuntimeClient>;
 

@@ -1,38 +1,20 @@
-use std::{process, thread, time::Instant};
+use std::thread;
 
 use ethers::{
     prelude::AbiError,
     types::{Address, Bytes},
 };
-use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 use crate::{
     env::{RuntimeCache, RuntimeConfig, EXECUTE_TX_BUNDLE_FUNCTION},
     exchanges::{init_exchange_handlers, populate_swap},
-    log_tracer::{self},
     networks::Network,
     price_oracle::PriceOracle,
-    types::{BalanceChange, BundleExecutionCall, Reserves, RouteResult},
-    RUNTIME_ROUTES,
+    types::{BalanceChange, BundleExecutionCall, RouteResult},
 };
 
 use super::{market_data_feed::get_network_data_feed, MarketDataFeed};
-
-// lazy_static! {
-//     static ref BASE_TRANSACTION: TransactionRequest = TransactionRequest {
-//         from: Some(RUNTIME_CACHE.as_ref().unwrap().client.address()),
-//         to: Some(ethers::types::NameOrAddress::Address(
-//             RUNTIME_CONFIG.executor_address,
-//         )),
-//         gas: None,
-//         gas_price: None,
-//         value: None,
-//         data: None,
-//         chain_id: None,
-//         nonce: None,
-//     };
-// }
 
 pub struct NetworkHandler {
     price_oracle: PriceOracle,
@@ -65,7 +47,6 @@ impl NetworkHandler {
     #[inline(always)]
     pub async fn init(&mut self) {
         init_exchange_handlers();
-        log_tracer::init();
         self.price_oracle.initiate();
 
         let (sender, mut receiver): (Sender<Vec<BalanceChange>>, Receiver<_>) = channel(32);
@@ -86,31 +67,38 @@ impl NetworkHandler {
             let _guard = handle.enter();
         });
 
-        let mut switch = true;
-        while let Some(balance_changes) = receiver.recv().await {
-            if switch == true {
-                switch = false;
-                println!("Validation received...\n");
-                println!("Listening to market updates...\n")
-            } else {
-                if balance_changes.len() > 0 {
-                    self.handle_market_update(&balance_changes).await;
+        let handle = tokio::runtime::Handle::current();
+        thread::spawn(move || {
+            let _guard = handle.enter();
+            
+            handle.spawn(async move {
+                let mut switch = true;
+                while let Some(balance_changes) = receiver.recv().await {
+                    if switch == true {
+                        switch = false;
+                        println!("Validation received...\n");
+                        println!("Listening to market updates...\n")
+                    } else {
+                        if balance_changes.len() > 0 {
+                            Self::handle_market_update(&balance_changes);
+                        }
+                    }
                 }
-            }
-        }
+            });
+        });
     }
 
     #[inline(always)]
-    async fn handle_market_update(&self, balance_changes: &Vec<BalanceChange>) {
-        let mut reserve_table = self.price_oracle.get_market_reserves().await;
+    fn handle_market_update(_balance_changes: &Vec<BalanceChange>) {
+        // let mut reserve_table = self.price_oracle.get_market_reserves().await;
 
-        for balance_change in balance_changes {
-            let reserves = reserve_table[balance_change.market.id].value;
-            reserve_table[balance_change.market.id].value = (
-                (reserves.0 + balance_change.amount_0_in) - balance_change.amount_0_out,
-                (reserves.1 + balance_change.amount_1_in) - balance_change.amount_1_out,
-            )
-        }
+        // for balance_change in balance_changes {
+        //     let reserves = reserve_table[balance_change.market.id].value;
+        //     reserve_table[balance_change.market.id].value = (
+        //         (reserves.0 + balance_change.amount_0_in) - balance_change.amount_0_out,
+        //         (reserves.1 + balance_change.amount_1_in) - balance_change.amount_1_out,
+        //     )
+        // }
 
         // let inst = Instant::now();
         // let f: crate::types::OrganizedList<(ethers::types::U256, ethers::types::U256)> =

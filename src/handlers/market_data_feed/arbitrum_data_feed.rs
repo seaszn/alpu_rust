@@ -1,5 +1,6 @@
-use std::time::Instant;
+use ethers::types::Transaction;
 use futures::{SinkExt, StreamExt};
+use std::time::Instant;
 
 use tokio::sync::mpsc::Sender;
 use tokio::task::JoinSet;
@@ -47,28 +48,31 @@ async fn handle_text_message(
 ) {
     if let Some(message_text) = incomming.as_text() {
         if let Some(relay_message) = RelayMessage::from_json(message_text) {
-            let decode_results: Vec<TransactionDecodeResult> = relay_message.decode();
-
-            if decode_results.len() > 0 {
+            let decoded_transactions: Vec<TransactionDecodeResult> = relay_message.decode();
+            
+            if decoded_transactions.len() > 0 {
                 let inst = Instant::now();
+                let block_number = price_oracle::PriceOracle::get_block_number();
+                let mut balance_changes: Vec<BalanceChange> = vec![];
+                
                 let mut call_set: JoinSet<Vec<BalanceChange>> = JoinSet::new();
-                let block_number = *price_oracle::PriceOracle::get_block_number().read().await;
-
-                for mut decode_result in decode_results {
+                
+                for decoded in decoded_transactions {
                     call_set.spawn(async move {
-                        decode_result.transaction.block_number = Some(block_number);
-
-                        if decode_result.transaction.to.is_some() {
+                        if decoded.transaction.to.is_some() {
                             if let Some(transaction_logs) = log_tracer::trace_transaction(
-                                &mut decode_result.transaction,
-                                runtime_cache,
+                                Transaction {
+                                    block_number: Some(block_number),
+                                    ..decoded.transaction
+                                },
+                                &runtime_cache,
                             )
                             .await
                             {
                                 if transaction_logs.len() > 0 {
                                     return exchanges::parse_balance_changes(
                                         &transaction_logs,
-                                        runtime_cache,
+                                        &runtime_cache,
                                     );
                                 }
                             }
@@ -77,9 +81,7 @@ async fn handle_text_message(
                         return vec![];
                     });
                 }
-                // Get all the transaction logs of the
 
-                let mut balance_changes: Vec<BalanceChange> = vec![];
                 while let Some(Ok(mut changes)) = call_set.join_next().await {
                     if changes.len() > 0 {
                         balance_changes.append(&mut changes);

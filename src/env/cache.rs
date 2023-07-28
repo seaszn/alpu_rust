@@ -1,7 +1,7 @@
 use ethers::{
     contract::abigen,
     middleware::SignerMiddleware,
-    providers::{Http, Middleware, Provider},
+    providers::{Middleware, Provider, Http, Ws},
     signers::LocalWallet,
     types::{H160, U256},
 };
@@ -10,6 +10,7 @@ use super::{
     config::RuntimeConfig,
     types::{BundleExecutorContract, RuntimeClient, UniswapQueryContract},
 };
+
 use crate::{
     exchanges::get_exchange_markets,
     networks::Network,
@@ -36,15 +37,17 @@ impl RuntimeCache {
         config: &'static RuntimeConfig,
         network: &'static Network,
     ) -> Result<RuntimeCache, Error> {
-        let provider: Provider<Http> =
-            Provider::<Http>::try_from(config.rpc_endpoint.as_str()).expect("msg");
+        let provider: Provider<Ws> = block_on(Provider::<Ws>::connect(config.rpc_endpoint.as_str())).expect("tet");
+        // let provider: Provider<Http> = Provider::<Http>::try_from(config.rpc_endpoint.as_str()).expect("tet");
 
         let wallet = config
             .private_key
             .parse::<LocalWallet>()
             .expect("PRIVATE_KEY is not a valid private key");
 
-        let client: Arc<RuntimeClient> = Arc::new(SignerMiddleware::new(provider.clone(), wallet.clone()));
+
+        let client: Arc<RuntimeClient> =
+            Arc::new(SignerMiddleware::new(provider, wallet.clone()));
 
         let uniswap_query: UniswapQueryContract =
             UniswapQuery::new(network.uniswap_query_address, client.clone());
