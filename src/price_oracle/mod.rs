@@ -3,6 +3,8 @@ use ethers::types::U256;
 use ethers::types::U64;
 use ethers::utils::parse_units;
 use ethers::utils::ParseUnits;
+use futures::executor::block_on;
+use futures_util::StreamExt;
 use serde_json::Value;
 use std::sync::atomic;
 use std::sync::atomic::AtomicU64;
@@ -40,6 +42,7 @@ pub struct PriceOracle {
     runtime_config: &'static RuntimeConfig,
     market_join_handle: Option<thread::JoinHandle<()>>,
     daily_join_handle: Option<thread::JoinHandle<()>>,
+    block_join_handle: Option<thread::JoinHandle<()>>,
 }
 unsafe impl Send for PriceOracle {}
 
@@ -55,6 +58,7 @@ impl PriceOracle {
             runtime_config,
             market_join_handle: None,
             daily_join_handle: None,
+            block_join_handle: None,
         };
 
         return result;
@@ -62,8 +66,25 @@ impl PriceOracle {
 
     #[inline(always)]
     pub fn initiate(&mut self) {
+        self.initiate_block_updates();
         self.initiate_daily_updates(Duration::from_secs(60 * 60 * 24));
-        self.initiate_market_updates(Duration::from_millis(1000));
+        // self.initiate_market_updates(Duration::from_millis(1000));
+    }
+    #[inline(always)]
+    fn initiate_block_updates(&mut self) {
+        let cache_reference = self.runtime_cache;
+
+        self.block_join_handle = Some(thread::spawn(move || {
+            if let Ok(mut subscription) = block_on(cache_reference.client.subscribe_blocks()) {
+                loop {
+                    block_on(async {
+                        if let Some(block) = subscription.next().await {
+                            NEW_BLOCK_NUMBER.store(block.number.unwrap().as_u64(), Ordering::SeqCst)
+                        }
+                    });
+                }
+            }
+        }));
     }
 
     #[inline(always)]
@@ -85,7 +106,7 @@ impl PriceOracle {
                             &config_reference,
                         )
                         .await;
-                    
+
                     {
                         let mut w_refrence = MARKET_RESERVE_TABLE.write().await;
                         w_refrence.update_all(&mut reserve_table);

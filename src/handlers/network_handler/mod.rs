@@ -67,25 +67,18 @@ impl NetworkHandler {
             let _guard = handle.enter();
         });
 
-        let handle = tokio::runtime::Handle::current();
-        thread::spawn(move || {
-            let _guard = handle.enter();
-            
-            handle.spawn(async move {
-                let mut switch = true;
-                while let Some(balance_changes) = receiver.recv().await {
-                    if switch == true {
-                        switch = false;
-                        println!("Validation received...\n");
-                        println!("Listening to market updates...\n")
-                    } else {
-                        if balance_changes.len() > 0 {
-                            Self::handle_market_update(&balance_changes);
-                        }
-                    }
+        let mut switch = true;
+        while let Some(balance_changes) = receiver.recv().await {
+            if switch == true {
+                switch = false;
+                println!("Validation received...\n");
+                println!("Listening to market updates...\n")
+            } else {
+                if balance_changes.len() > 0 {
+                    Self::handle_market_update(&balance_changes);
                 }
-            });
-        });
+            }
+        }
     }
 
     #[inline(always)]

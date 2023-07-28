@@ -1,7 +1,7 @@
 use ethers::{
     contract::abigen,
     middleware::SignerMiddleware,
-    providers::{Middleware, Provider, Http, Ws},
+    providers::{Http, Middleware, Provider, Ws},
     signers::LocalWallet,
     types::{H160, U256},
 };
@@ -37,17 +37,13 @@ impl RuntimeCache {
         config: &'static RuntimeConfig,
         network: &'static Network,
     ) -> Result<RuntimeCache, Error> {
-        let provider: Provider<Ws> = block_on(Provider::<Ws>::connect(config.rpc_endpoint.as_str())).expect("tet");
-        // let provider: Provider<Http> = Provider::<Http>::try_from(config.rpc_endpoint.as_str()).expect("tet");
-
+        let provider: Provider<Ws> = block_on(Provider::<Ws>::connect(config.rpc_endpoint.as_str())).unwrap();
         let wallet = config
             .private_key
             .parse::<LocalWallet>()
             .expect("PRIVATE_KEY is not a valid private key");
 
-
-        let client: Arc<RuntimeClient> =
-            Arc::new(SignerMiddleware::new(provider, wallet.clone()));
+        let client: Arc<RuntimeClient> = Arc::new(SignerMiddleware::new(provider, wallet.clone()));
 
         let uniswap_query: UniswapQueryContract =
             UniswapQuery::new(network.uniswap_query_address, client.clone());
