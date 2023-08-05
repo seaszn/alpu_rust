@@ -1,4 +1,4 @@
-use std::io::Error;
+use std::{io::Error, sync::RwLock};
 
 use env::{RuntimeCache, RuntimeConfig};
 use networks::Network;
@@ -25,8 +25,8 @@ lazy_static! {
     static ref RUNTIME_NETWORK: Network = Network::from_chain_id(&RUNTIME_CONFIG.chain_id);
     static ref RUNTIME_CACHE: Result<RuntimeCache, Error> =
         RuntimeCache::new(&RUNTIME_CONFIG, &RUNTIME_NETWORK);
-    static ref RUNTIME_ROUTES: Vec<Route> =
-        Route::generate_from_runtime(&RUNTIME_NETWORK, &RUNTIME_CONFIG, &RUNTIME_CACHE);
+    static ref RUNTIME_ROUTES: RwLock<Vec<Route>> = RwLock::new(Vec::new());
+        // Route::generate_from_runtime(&RUNTIME_NETWORK, &RUNTIME_CONFIG, &RUNTIME_CACHE);
 }
 
 #[tokio::main(flavor = "multi_thread")]
@@ -39,13 +39,16 @@ async fn main() {
         Ok(runtime_cache) => {
             init_exchange_handlers();
 
-            println!("Query: {}", runtime_cache.uniswap_query.address());
+            println!("\nQuery: {}", runtime_cache.uniswap_query.address());
             println!("Wallet: {}", runtime_cache.client.address());
             println!("Executor: {}\n", runtime_cache.bundle_executor.address());
 
             println!("Cached {} tokens..", RUNTIME_NETWORK.tokens.len());
             println!("Cached {} markets..", runtime_cache.markets.len());
-            println!("Cached {} routes..\n", RUNTIME_ROUTES.len());
+
+            let route_count =
+                Route::generate_from_runtime(&*RUNTIME_NETWORK, &*RUNTIME_CONFIG, runtime_cache);
+            println!("Cached {} routes..\n", route_count);
 
             println!("Waiting for validation, this might take a while...");
 

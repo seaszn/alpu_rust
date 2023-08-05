@@ -3,8 +3,6 @@ use ethers::types::U256;
 use ethers::types::U64;
 use ethers::utils::parse_units;
 use ethers::utils::ParseUnits;
-use futures::executor::block_on;
-use futures_util::StreamExt;
 use serde_json::Value;
 use std::sync::atomic;
 use std::sync::atomic::AtomicU64;
@@ -16,9 +14,9 @@ use tokio::sync::RwLock;
 
 use crate::env::RuntimeConfig;
 use crate::exchanges::get_market_reserves;
+use crate::types::MarketState;
 use crate::types::OrganizedList;
 use crate::types::PriceTable;
-use crate::types::Reserves;
 use crate::types::Token;
 use crate::{env::RuntimeCache, networks::Network};
 
@@ -26,7 +24,7 @@ use self::base_table::get_base_price_table;
 mod base_table;
 
 lazy_static! {
-    static ref MARKET_RESERVE_TABLE: RwLock<OrganizedList<Reserves>> =
+    static ref MARKET_RESERVE_TABLE: RwLock<OrganizedList<MarketState>> =
         RwLock::new(OrganizedList::new());
     static ref REF_PRICE_TABLE: RwLock<PriceTable> = RwLock::new(PriceTable::new());
     static ref NEW_BLOCK_NUMBER: atomic::AtomicU64 = AtomicU64::new(0);
@@ -42,7 +40,6 @@ pub struct PriceOracle {
     runtime_config: &'static RuntimeConfig,
     market_join_handle: Option<thread::JoinHandle<()>>,
     daily_join_handle: Option<thread::JoinHandle<()>>,
-    block_join_handle: Option<thread::JoinHandle<()>>,
 }
 unsafe impl Send for PriceOracle {}
 
@@ -58,7 +55,6 @@ impl PriceOracle {
             runtime_config,
             market_join_handle: None,
             daily_join_handle: None,
-            block_join_handle: None,
         };
 
         return result;
@@ -66,25 +62,9 @@ impl PriceOracle {
 
     #[inline(always)]
     pub fn initiate(&mut self) {
-        self.initiate_block_updates();
+        // self.initiate_block_updates();
         self.initiate_daily_updates(Duration::from_secs(60 * 60 * 24));
-        // self.initiate_market_updates(Duration::from_millis(1000));
-    }
-    #[inline(always)]
-    fn initiate_block_updates(&mut self) {
-        let cache_reference = self.runtime_cache;
-
-        self.block_join_handle = Some(thread::spawn(move || {
-            if let Ok(mut subscription) = block_on(cache_reference.client.subscribe_blocks()) {
-                loop {
-                    block_on(async {
-                        if let Some(block) = subscription.next().await {
-                            NEW_BLOCK_NUMBER.store(block.number.unwrap().as_u64(), Ordering::SeqCst)
-                        }
-                    });
-                }
-            }
-        }));
+        self.initiate_market_updates(Duration::from_millis(1000));
     }
 
     #[inline(always)]
@@ -99,7 +79,7 @@ impl PriceOracle {
             handle.spawn(async move {
                 loop {
                     // // let inst = Instant::now();
-                    let mut reserve_table: crate::types::OrganizedList<(U256, U256)> =
+                    let mut reserve_table: crate::types::OrganizedList<MarketState> =
                         get_market_reserves(
                             &cache_reference.markets,
                             &cache_reference,
@@ -192,6 +172,7 @@ impl PriceOracle {
                     {
                         {
                             let mut w_refrence = WALLET_BALANCE.write().await;
+
                             *w_refrence = balance_response;
                         }
                     }
@@ -205,7 +186,7 @@ impl PriceOracle {
     }
 
     #[inline(always)]
-    pub async fn get_market_reserves(&self) -> OrganizedList<Reserves> {
+    pub async fn get_market_reserves(&self) -> OrganizedList<MarketState> {
         return MARKET_RESERVE_TABLE.read().await.clone();
     }
 
@@ -227,5 +208,9 @@ impl PriceOracle {
     #[inline(always)]
     pub async fn get_gas_price(&self) -> U256 {
         return GAS_PRICE.read().await.clone();
+    }
+
+    pub async fn get_ref_price_table(&self) -> PriceTable{
+        return REF_PRICE_TABLE.read().await.clone();
     }
 }

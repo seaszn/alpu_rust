@@ -1,14 +1,15 @@
+use crate::{types::MarketState, utils::parse::dec_to_u256};
 use ethers::{
     abi::{AbiParser, Function},
     prelude::*,
 };
 use itertools::Itertools;
 use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
-use std::io::{Error, ErrorKind};
+use std::io::Error;
 use tokio::task::JoinSet;
 
 use self::types::{
-    uniswap_v2_pair::{self, SwapCall},
+    uniswap_v2_pair::{self, SwapCall, UniswapV2Pair},
     UniswapV2Factory, UniswapV2FactoryContract,
 };
 use ethers::types::U256;
@@ -18,11 +19,12 @@ use crate::{
     env::{RuntimeCache, RuntimeConfig},
     networks::Network,
     types::{
-        market::Market, BalanceChange, OrgValue, OrganizedList, Reserves, SwapLog, TransactionLog,
+        market::Market, BalanceChange, OrgValue, OrganizedList, SwapLog, Token, TransactionLog,
     },
 };
 
 mod types;
+pub use types::UniswapV2MarketState;
 
 lazy_static! {
     static ref SWAP_METHOD: Function = AbiParser::default()
@@ -235,16 +237,16 @@ pub async fn get_markets(
 
     if let Ok(market_count) = factory_contract.all_pairs_length().await {
         let total_market_count: u128 = market_count.as_u128();
-        
+
         for chunk in &(0..total_market_count)
-        .into_iter()
-        .chunks(runtime_config.large_chunk_size)
+            .into_iter()
+            .chunks(runtime_config.large_chunk_size)
         {
             let (start, stop) = {
                 let chunk = chunk.collect_vec();
                 (U256::from(chunk[0]), U256::from(*chunk.last().unwrap()))
             };
-            
+
             match runtime_cache
                 .uniswap_query
                 .get_uniswap_v2_markets(exchange.factory_address, start, stop)
@@ -262,18 +264,43 @@ pub async fn get_markets(
                             .find(|s| s.contract_address.0 == element[1].0);
 
                         if token_0.is_some() && token_1.is_some() {
-                            result.push(Market::new(
-                                element[2],
-                                [token_0.unwrap(), token_1.unwrap()],
-                                exchange.base_fee,
-                                false,
-                                exchange.protocol,
-                            ));
+                            let pair_contract =
+                                UniswapV2Pair::new(element[2], runtime_cache.client.clone());
+
+                            if let Ok((reserve_0, reserve_1, _)) =
+                                pair_contract.get_reserves().await
+                            {
+                                let token_0_instance = token_0.unwrap();
+                                let token_1_instance = token_1.unwrap();
+
+                                let min_reserve_0 = dec_to_u256(
+                                    &runtime_config.min_market_reserves,
+                                    token_0_instance.decimals,
+                                );
+
+                                let min_reserve_1 = dec_to_u256(
+                                    &runtime_config.min_market_reserves,
+                                    token_1_instance.decimals,
+                                );
+
+                                if min_reserve_0.lt(&U256::from(reserve_0))
+                                    && min_reserve_1.lt(&U256::from(reserve_1))
+                                {
+                                    result.push(Market::new(
+                                        element[2],
+                                        [token_0.unwrap(), token_1.unwrap()],
+                                        exchange.base_fee,
+                                        false,
+                                        exchange.protocol,
+                                    ));
+                                }
+                            }
                         }
                     }
                 }
-                Err(err) => {
-                    return Err(Error::new(ErrorKind::ConnectionRefused, err));
+                Err(_) => {
+                    // println!("failed v2 {:#?}", err);
+                    // return Err(Error::new(ErrorKind::ConnectionRefused, err));
                 }
             }
         }
@@ -334,8 +361,8 @@ pub async fn get_market_reserves(
     markets: Vec<&'static OrgValue<Market>>,
     runtime_cache: &'static RuntimeCache,
     runtime_config: &RuntimeConfig,
-) -> OrganizedList<Reserves> {
-    let mut join_set: JoinSet<Vec<(usize, Reserves)>> = JoinSet::new();
+) -> OrganizedList<MarketState> {
+    let mut join_set: JoinSet<Vec<(usize, MarketState)>> = JoinSet::new();
 
     for market_chunk in &markets.into_iter().chunks(runtime_config.small_chunk_size) {
         let market_values = market_chunk.collect_vec();
@@ -347,17 +374,20 @@ pub async fn get_market_reserves(
         join_set.spawn(async move {
             match runtime_cache
                 .uniswap_query
-                .get_reserves_by_pairs(addressess.clone())
+                .get_uniswap_v2_states(addressess.clone())
                 .await
             {
                 Ok(response) => {
-                    let mut result: Vec<(usize, Reserves)> = Vec::new();
+                    let mut result: Vec<(usize, MarketState)> = Vec::new();
 
                     for i in 0..market_values.len() {
                         let raw_reserves: [u128; 3] = response[i];
                         result.push((
                             market_values[i].id,
-                            (U256::from(raw_reserves[0]), U256::from(raw_reserves[1])),
+                            MarketState::UniswapV2((
+                                U256::from(raw_reserves[0]),
+                                U256::from(raw_reserves[1]),
+                            )),
                         ))
                     }
 
@@ -370,7 +400,7 @@ pub async fn get_market_reserves(
         });
     }
 
-    let mut res: OrganizedList<Reserves> = OrganizedList::new();
+    let mut res: OrganizedList<MarketState> = OrganizedList::new();
     while let Some(Ok(result)) = join_set.join_next().await {
         // println!("{}", result.len());
         for i in 0..result.len() {
@@ -386,11 +416,20 @@ pub async fn get_market_reserves(
 }
 
 #[inline(always)]
-pub fn calculate_amount_out(market: &Market, reserves: &Reserves, input_amount: &U256) -> U256 {
-    let (fee_multiplier, multiplier) = market.get_fee_data();
+pub fn calculate_amount_out(
+    market: &Market,
+    reserves: &UniswapV2MarketState,
+    input_amount: &U256,
+    token_in: &'static Token,
+) -> U256 {
+    if token_in.eq(market.tokens[0]) {
+        let (fee_multiplier, multiplier) = market.get_fee_data();
 
-    let amount_in_with_fee = input_amount * fee_multiplier;
-    let numerator = amount_in_with_fee * reserves.1;
-    let denominator = (reserves.0 * multiplier) + amount_in_with_fee;
-    return numerator / denominator;
+        let amount_in_with_fee = input_amount * fee_multiplier;
+        let numerator = amount_in_with_fee * reserves.1;
+        let denominator = (reserves.0 * multiplier) + amount_in_with_fee;
+        return numerator / denominator;
+    } else {
+        return calculate_amount_out(market, &(reserves.1, reserves.0), input_amount, token_in);
+    }
 }

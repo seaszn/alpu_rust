@@ -1,5 +1,5 @@
 //SPDX-License-Identifier: UNLICENSED
-pragma solidity 0.8.19;
+pragma solidity ^0.8.19;
 
 pragma experimental ABIEncoderV2;
 
@@ -15,10 +15,26 @@ abstract contract UniswapV2Factory {
 
 // In order to quickly load up data from Uniswap-like market, this contract allows easy iteration with a single eth_call
 contract UniswapQuery {
-    function getReservesByPairs(
+    function getUniswapV2States(
         IUniswapV2Pair[] calldata _pairs
     ) external view returns (uint112[3][] memory) {
         uint112[3][] memory result = new uint112[3][](_pairs.length);
+        uint32 i = 0;
+
+        do {
+            unchecked {
+                (result[i][0], result[i][1], result[i][2]) = _pairs[i]
+                    .getReserves();
+                ++i;
+            }
+        } while (i < _pairs.length);
+        return result;
+    }
+
+    function getStableSwapStates(
+        IStableSwapPair[] calldata _pairs
+    ) external view returns (uint256[3][] memory) {
+        uint256[3][] memory result = new uint256[3][](_pairs.length);
         uint32 i = 0;
 
         do {

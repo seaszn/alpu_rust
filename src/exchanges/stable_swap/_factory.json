@@ -1,42 +1,40 @@
 [
     {
+        "anonymous": false,
         "inputs": [
             {
-                "internalType": "address",
-                "name": "_logic",
-                "type": "address"
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "volatileFee",
+                "type": "uint256"
             },
             {
-                "internalType": "address",
-                "name": "admin_",
-                "type": "address"
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "stableFee",
+                "type": "uint256"
             },
             {
-                "internalType": "bytes",
-                "name": "_data",
-                "type": "bytes"
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "changeMadeTimestamp",
+                "type": "uint256"
             }
         ],
-        "stateMutability": "payable",
-        "type": "constructor"
+        "name": "FeesChanged",
+        "type": "event"
     },
     {
         "anonymous": false,
         "inputs": [
             {
                 "indexed": false,
-                "internalType": "address",
-                "name": "previousAdmin",
-                "type": "address"
-            },
-            {
-                "indexed": false,
-                "internalType": "address",
-                "name": "newAdmin",
-                "type": "address"
+                "internalType": "uint8",
+                "name": "version",
+                "type": "uint8"
             }
         ],
-        "name": "AdminChanged",
+        "name": "Initialized",
         "type": "event"
     },
     {
@@ -45,103 +43,18 @@
             {
                 "indexed": true,
                 "internalType": "address",
-                "name": "beacon",
-                "type": "address"
-            }
-        ],
-        "name": "BeaconUpgraded",
-        "type": "event"
-    },
-    {
-        "anonymous": false,
-        "inputs": [
-            {
-                "indexed": true,
-                "internalType": "address",
-                "name": "implementation",
-                "type": "address"
-            }
-        ],
-        "name": "Upgraded",
-        "type": "event"
-    },
-    {
-        "stateMutability": "payable",
-        "type": "fallback"
-    },
-    {
-        "inputs": [],
-        "name": "admin",
-        "outputs": [
-            {
-                "internalType": "address",
-                "name": "admin_",
-                "type": "address"
-            }
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "newAdmin",
-                "type": "address"
-            }
-        ],
-        "name": "changeAdmin",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    {
-        "inputs": [],
-        "name": "implementation",
-        "outputs": [
-            {
-                "internalType": "address",
-                "name": "implementation_",
-                "type": "address"
-            }
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "newImplementation",
-                "type": "address"
-            }
-        ],
-        "name": "upgradeTo",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "newImplementation",
+                "name": "previousOwner",
                 "type": "address"
             },
             {
-                "internalType": "bytes",
-                "name": "data",
-                "type": "bytes"
+                "indexed": true,
+                "internalType": "address",
+                "name": "newOwner",
+                "type": "address"
             }
         ],
-        "name": "upgradeToAndCall",
-        "outputs": [],
-        "stateMutability": "payable",
-        "type": "function"
-    },
-    {
-        "stateMutability": "payable",
-        "type": "receive"
+        "name": "OwnershipTransferred",
+        "type": "event"
     },
     {
         "anonymous": false,
@@ -160,6 +73,12 @@
             },
             {
                 "indexed": false,
+                "internalType": "bool",
+                "name": "stable",
+                "type": "bool"
+            },
+            {
+                "indexed": false,
                 "internalType": "address",
                 "name": "pair",
                 "type": "address"
@@ -173,6 +92,52 @@
         ],
         "name": "PairCreated",
         "type": "event"
+    },
+    {
+        "inputs": [],
+        "name": "MAX_FEE",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "MAX_REFERRAL_FEE",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "MAX_REFERRAL_FEE_",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "acceptFeeManager",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
     },
     {
         "inputs": [
@@ -217,6 +182,11 @@
                 "internalType": "address",
                 "name": "tokenB",
                 "type": "address"
+            },
+            {
+                "internalType": "bool",
+                "name": "stable",
+                "type": "bool"
             }
         ],
         "name": "createPair",
@@ -232,7 +202,7 @@
     },
     {
         "inputs": [],
-        "name": "feeTo",
+        "name": "dibs",
         "outputs": [
             {
                 "internalType": "address",
@@ -245,12 +215,54 @@
     },
     {
         "inputs": [],
-        "name": "feeToSetter",
+        "name": "feeManager",
         "outputs": [
             {
                 "internalType": "address",
                 "name": "",
                 "type": "address"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "bool",
+                "name": "_stable",
+                "type": "bool"
+            }
+        ],
+        "name": "getFee",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "getInitializable",
+        "outputs": [
+            {
+                "internalType": "address",
+                "name": "",
+                "type": "address"
+            },
+            {
+                "internalType": "address",
+                "name": "",
+                "type": "address"
+            },
+            {
+                "internalType": "bool",
+                "name": "",
+                "type": "bool"
             }
         ],
         "stateMutability": "view",
@@ -267,6 +279,11 @@
                 "internalType": "address",
                 "name": "",
                 "type": "address"
+            },
+            {
+                "internalType": "bool",
+                "name": "",
+                "type": "bool"
             }
         ],
         "name": "getPair",
@@ -282,7 +299,46 @@
     },
     {
         "inputs": [],
-        "name": "migrator",
+        "name": "initialize",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "",
+                "type": "address"
+            }
+        ],
+        "name": "isPair",
+        "outputs": [
+            {
+                "internalType": "bool",
+                "name": "",
+                "type": "bool"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "isPaused",
+        "outputs": [
+            {
+                "internalType": "bool",
+                "name": "",
+                "type": "bool"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "owner",
         "outputs": [
             {
                 "internalType": "address",
@@ -307,14 +363,34 @@
         "type": "function"
     },
     {
-        "inputs": [
+        "inputs": [],
+        "name": "pairs",
+        "outputs": [
+            {
+                "internalType": "address[]",
+                "name": "",
+                "type": "address[]"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "pendingFeeManager",
+        "outputs": [
             {
                 "internalType": "address",
-                "name": "_feeTo",
+                "name": "",
                 "type": "address"
             }
         ],
-        "name": "setFeeTo",
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "renounceOwnership",
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function"
@@ -323,11 +399,29 @@
         "inputs": [
             {
                 "internalType": "address",
-                "name": "_feeToSetter",
+                "name": "_dibs",
                 "type": "address"
             }
         ],
-        "name": "setFeeToSetter",
+        "name": "setDibs",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "_stableFee",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "_volatileFee",
+                "type": "uint256"
+            }
+        ],
+        "name": "setFee",
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function"
@@ -336,13 +430,130 @@
         "inputs": [
             {
                 "internalType": "address",
-                "name": "_migrator",
+                "name": "_feeManager",
                 "type": "address"
             }
         ],
-        "name": "setMigrator",
+        "name": "setFeeManager",
         "outputs": [],
         "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "bool",
+                "name": "_state",
+                "type": "bool"
+            }
+        ],
+        "name": "setPause",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "_refFee",
+                "type": "uint256"
+            }
+        ],
+        "name": "setReferralFee",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "_feehandler",
+                "type": "address"
+            }
+        ],
+        "name": "setStakingFeeAddress",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "_newFee",
+                "type": "uint256"
+            }
+        ],
+        "name": "setStakingFees",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "stableFee",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "stakingFeeHandler",
+        "outputs": [
+            {
+                "internalType": "address",
+                "name": "",
+                "type": "address"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "stakingNFTFee",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "newOwner",
+                "type": "address"
+            }
+        ],
+        "name": "transferOwnership",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "volatileFee",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
         "type": "function"
     }
 ]

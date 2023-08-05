@@ -1,6 +1,7 @@
 mod arbitrum_data_feed;
 pub use arbitrum_data_feed::ArbitrumDataFeed;
 
+use ethers::types::U64;
 use tokio::sync::mpsc::Sender;
 use websocket_lite::Result;
 
@@ -12,7 +13,7 @@ use crate::networks::ARBITRUM_CHAIN_ID;
 pub trait MarketDataFeed {
     async fn init(
         &self,
-        sender: Sender<Vec<BalanceChange>>,
+        sender: Sender<(Vec<BalanceChange>, U64)>,
         runtime_config: &'static RuntimeConfig,
         runtime_cache: &'static RuntimeCache,
     ) -> Result<()>;

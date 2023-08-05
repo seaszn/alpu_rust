@@ -1,6 +1,6 @@
 use std::{ops::*, vec};
 
-use super::Reserves;
+use crate::exchanges::UniswapV2MarketState;
 
 #[derive(Clone, Debug)]
 pub struct OrganizedList<T>
@@ -45,7 +45,7 @@ T: Send,
 }
 
 
-impl PartialEq for OrganizedList<Reserves> {
+impl PartialEq for OrganizedList<UniswapV2MarketState> {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
         if self.internal.len() != other.internal.len(){

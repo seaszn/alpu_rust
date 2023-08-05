@@ -1,4 +1,4 @@
-use ethers::types::Transaction;
+use ethers::types::{Transaction, U64};
 use futures::{SinkExt, StreamExt};
 use std::time::Instant;
 
@@ -18,7 +18,7 @@ pub struct ArbitrumDataFeed;
 impl MarketDataFeed for ArbitrumDataFeed {
     async fn init(
         &self,
-        sender: Sender<Vec<BalanceChange>>,
+        sender: Sender<(Vec<BalanceChange>, U64)>,
         runtime_config: &'static RuntimeConfig,
         runtime_cache: &'static RuntimeCache,
     ) -> websocket_lite::Result<()> {
@@ -43,7 +43,7 @@ impl MarketDataFeed for ArbitrumDataFeed {
 #[inline(always)]
 async fn handle_text_message(
     incomming: Message,
-    sender: &Sender<Vec<BalanceChange>>,
+    sender: &Sender<(Vec<BalanceChange>, U64)>,
     runtime_cache: &'static RuntimeCache,
 ) {
     if let Some(message_text) = incomming.as_text() {
@@ -95,7 +95,7 @@ async fn handle_text_message(
                         inst.elapsed()
                     );
 
-                    _ = sender.send(balance_changes).await;
+                    _ = sender.send((balance_changes, block_number)).await;
                 }
             }
         }
