@@ -113,50 +113,10 @@ impl NetworkHandler {
                 market_state.update_with_balance_change(balance_change);
         }
 
-        /*
-        // let inst = Instant::now();
-        // let f: crate::types::OrganizedList<(ethers::types::U256, ethers::types::U256)> =
-        // get_market_reserves(
-            //     &self.runtime_cache.markets,
-            //     self.runtime_cache,
-            //     self.runtime_config,
-            // )
-            // .await;
-            // println!("{:?}", inst.elapsed());
-
-            // for i in 0..reserve_table.len() {
-                //     let old_reserves = reserve_table.to_raw_vec()[i];
-                //     let new_reserves = f.to_raw_vec()[i];
-
-                //     if !old_reserves.value.0.eq(&new_reserves.value.0)
-                //         || !old_reserves.value.1.eq(&new_reserves.value.1)
-                //     {
-                    //         println!(
-                        //             "{:?}",
-        //             self.runtime_cache.markets[old_reserves.id]
-        //                 .value
-        //                 .contract_address
-        //         );
-        //         println!("{:#?}", old_reserves);
-        //         println!("{:#?}", new_reserves);
-        //         println!(
-            //             "{:#?}",
-            //             balance_changes
-            //                 .iter()
-            //                 .find(|x| x.market.id == old_reserves.id)
-            //         );
-            //     }
-            // }
-            // if _reserve_table == f {
-                //     println!("t");
-                //     process::exit(1);
-                // }
-                */
-
         let market_ids: Vec<usize> = balance_changes.par_iter().map(|x| x.market.id).collect();
         let price_table = self.price_oracle.get_ref_price_table().await;
 
-        let route_results: Vec<RouteResult> = RUNTIME_ROUTES
+        let _route_results: Vec<RouteResult> = RUNTIME_ROUTES
             .read()
             .unwrap()
             .par_iter()
@@ -165,56 +125,62 @@ impl NetworkHandler {
             })
             .collect();
 
-        // for market_id in market_ids {
-        //     println!("id: {}", market_id);
-        //     println!("market {:#?}", self.runtime_cache.markets[*market_id]);
-        //     println!("{:#?}", f[*market_id]);
+        println!(
+            "found {} profitable routes in {:?}",
+            _route_results.len(),
+            inst.elapsed()
+        );
+        
+        // // for market_id in market_ids {
+        // //     println!("id: {}", market_id);
+        // //     println!("market {:#?}", self.runtime_cache.markets[*market_id]);
+        // //     println!("{:#?}", f[*market_id]);
+        // // }
+
+        // // process::exit(0);
+
+        // if route_results.len() > 0 {
+        //     let mut best_route_result: &RouteResult = &route_results[0];
+
+        //     for i in 1..route_results.len() {
+        //         let current_route_result = &route_results[i];
+        //         if current_route_result.ref_profit_loss > best_route_result.ref_profit_loss {
+        //             best_route_result = current_route_result;
+        //         }
+        //     }
+
+        //     println!(
+        //         "{} weth in {:?}",
+        //         format_units(best_route_result.ref_profit_loss, 18).unwrap(),
+        //         inst.elapsed()
+        //     );
+
+        //     // if let Ok(transaction_data) =
+        //     //     self.build_bundled_transaction(best_route_result, self.runtime_config)
+        //     // {
+        //     //     let raw_transaction: TransactionRequest = TransactionRequest {
+        //     //         data: Some(transaction_data),
+        //     //         gas_price: Some(self.price_oracle.get_gas_price().await),
+        //     //         ..self.base_transaction.clone()
+        //     //     };
+
+        //     //     let s = self
+        //     //         .runtime_cache
+        //     //         .client
+        //     //         .estimate_gas(
+        //     //             &TypedTransaction::Legacy(raw_transaction.clone()),
+        //     //             Some(BlockId::Number(ethers::types::BlockNumber::Latest)),
+        //     //         )
+        //     //         .await;
+
+        //     //     println!("{:#?}", s);
+        //     //     println!(
+        //     //         "{} weth",
+        //     //         format_units(best_route_result.ref_profit_loss, 18).unwrap()
+        //     //     );
+        //     //     println!("{:?}", inst.elapsed());
+        //     // }
         // }
-
-        // process::exit(0);
-
-        if route_results.len() > 0 {
-            let mut best_route_result: &RouteResult = &route_results[0];
-
-            for i in 1..route_results.len() {
-                let current_route_result = &route_results[i];
-                if current_route_result.ref_profit_loss > best_route_result.ref_profit_loss {
-                    best_route_result = current_route_result;
-                }
-            }
-
-            println!(
-                "{} weth in {:?}",
-                format_units(best_route_result.ref_profit_loss, 18).unwrap(),
-                inst.elapsed()
-            );
-
-            // if let Ok(transaction_data) =
-            //     self.build_bundled_transaction(best_route_result, self.runtime_config)
-            // {
-            //     let raw_transaction: TransactionRequest = TransactionRequest {
-            //         data: Some(transaction_data),
-            //         gas_price: Some(self.price_oracle.get_gas_price().await),
-            //         ..self.base_transaction.clone()
-            //     };
-
-            //     let s = self
-            //         .runtime_cache
-            //         .client
-            //         .estimate_gas(
-            //             &TypedTransaction::Legacy(raw_transaction.clone()),
-            //             Some(BlockId::Number(ethers::types::BlockNumber::Latest)),
-            //         )
-            //         .await;
-
-            //     println!("{:#?}", s);
-            //     println!(
-            //         "{} weth",
-            //         format_units(best_route_result.ref_profit_loss, 18).unwrap()
-            //     );
-            //     println!("{:?}", inst.elapsed());
-            // }
-        }
     }
 
     #[inline(always)]

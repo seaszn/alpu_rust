@@ -18,7 +18,7 @@ use std::{
 
 use ethers::types::U256;
 
-use self::types::{StableSwapFactory, StableSwapPair, SwapCall};
+use self::types::{StableSwapFactory, StableSwapPair, SwapCall, SwapFilter};
 
 use super::{
     uniswap_v2::{self},
@@ -216,9 +216,7 @@ pub fn parse_balance_changes(
         logs.into_par_iter()
             .map(move |transaction_log| -> Vec<BalanceChange> {
                 if let Ok(filters) =
-                    ethers::contract::decode_logs::<types::SwapFilter>(&[transaction_log
-                        .raw
-                        .clone()])
+                    ethers::contract::decode_logs::<SwapFilter>(&[transaction_log.raw.clone()])
                 {
                     let mut swap_events: Vec<BalanceChange> = vec![];
 
@@ -226,10 +224,10 @@ pub fn parse_balance_changes(
                         swap_events.push(BalanceChange {
                             market: Market::from_address(&transaction_log.address, runtime_cache)
                                 .unwrap(),
-                            amount_0_in: swap.amount_0_in.as_u128(),
-                            amount_1_in: swap.amount_1_in.as_u128(),
-                            amount_0_out: swap.amount_0_out.as_u128(),
-                            amount_1_out: swap.amount_1_out.as_u128(),
+                            amount_0_in: swap.amount_0_in,
+                            amount_1_in: swap.amount_1_in,
+                            amount_0_out: swap.amount_0_out,
+                            amount_1_out: swap.amount_1_out,
                         });
                     }
 

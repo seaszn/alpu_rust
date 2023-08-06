@@ -70,6 +70,9 @@ where
         return OrganizedList { internal: vec![] };
     }
 
+    pub fn append_unsorted(&mut self, other: &mut OrganizedList<T>){
+        self.internal.append(&mut other.internal);
+    }
     #[inline(always)]
     pub fn add_value(&mut self, value: T) {
         self.internal.push(OrgValue {
@@ -80,7 +83,7 @@ where
 
     #[inline(always)]
     pub fn add_pair(&mut self, value: OrgValue<T>) {
-        if !self.contains_key(value.id) {
+        if !self.contains_key_unsorted(value.id) {
             self.internal.push(value);
         }
     }

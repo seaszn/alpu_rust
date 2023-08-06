@@ -108,7 +108,6 @@ pub async fn get_market_reserves(
     for protocol in Protocol::iterator() {
         join_set.spawn(async move {
             let markets = markets.filter(|x| x.value.protocol == *protocol);
-
             match protocol {
                 Protocol::UniswapV2 => {
                     return uniswap_v2::get_market_reserves(markets, runtime_cache, runtime_config)
@@ -127,9 +126,10 @@ pub async fn get_market_reserves(
     }
 
     while let Some(Ok(mut call_result)) = join_set.join_next().await {
-        result.append(&mut call_result);
+        result.append_unsorted(&mut call_result);
     }
 
+    result.sort();
     return result;
 }
 
