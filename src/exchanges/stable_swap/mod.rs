@@ -1,7 +1,10 @@
 use tokio::task::JoinSet;
 pub use types::StableSwapMarketState;
 
-use crate::{utils::parse::dec_to_u256, types::{OrgValue, OrganizedList, MarketState}};
+use crate::{
+    types::{MarketState, OrgValue, OrganizedList},
+    utils::parse::dec_to_u256,
+};
 use ethers::{
     abi::{AbiParser, Function},
     prelude::*,
@@ -46,34 +49,30 @@ pub async fn get_market_reserves(
     for market_chunk in &markets.into_iter().chunks(runtime_config.small_chunk_size) {
         let market_values = market_chunk.collect_vec();
         let addressess: Vec<H160> = market_values
-        .iter()
-        .map(|x| x.value.contract_address)
-        .collect();
-    
-    join_set.spawn(async move {
-        match runtime_cache
-        .uniswap_query
-        .get_stable_swap_states(addressess.clone())
-        .await
-        {
-            Ok(response) => {
-                let mut result: Vec<(usize, MarketState)> = Vec::new();
-                
-                for i in 0..market_values.len() {
-                    let raw_reserves: [U256; 3] = response[i];
-                    result.push((
-                        market_values[i].id,
-                        MarketState::StableSwap((
-                            raw_reserves[0],
-                            raw_reserves[1],
-                        )),
-                        ))
+            .iter()
+            .map(|x| x.value.contract_address)
+            .collect();
+
+        join_set.spawn(async move {
+            match runtime_cache
+                .uniswap_query
+                .get_stable_swap_states(addressess.clone())
+                .await
+            {
+                Ok(response) => {
+                    let mut result: Vec<(usize, MarketState)> = Vec::new();
+
+                    for i in 0..market_values.len() {
+                        let raw_reserves: [U256; 3] = response[i];
+                        result.push((
+                            market_values[i].id,
+                            MarketState::StableSwap((raw_reserves[0], raw_reserves[1])),
+                        ));
                     }
 
                     return result;
                 }
-                Err(err) => {
-                    println!("{:?}", err);
+                Err(_) => {
                     return vec![];
                 }
             }
@@ -82,7 +81,6 @@ pub async fn get_market_reserves(
 
     let mut res: OrganizedList<MarketState> = OrganizedList::new();
     while let Some(Ok(result)) = join_set.join_next().await {
-        // println!("{}", result.len());
         for i in 0..result.len() {
             res.add_pair(OrgValue {
                 id: result[i].0,
@@ -94,7 +92,6 @@ pub async fn get_market_reserves(
     res.sort();
     return res;
 }
-
 
 #[inline(always)]
 pub fn init_handler() {
@@ -187,13 +184,12 @@ pub async fn get_markets(
                                         }
                                     };
                                     result.push(Market::new(
-                                        element[2],
+                                        element[3],
                                         [token_0_instance, token_1_instance],
                                         fee,
                                         stable,
                                         exchange.protocol,
                                     ));
-
                                 }
                             }
                         }

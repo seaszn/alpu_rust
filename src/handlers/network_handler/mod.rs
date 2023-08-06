@@ -1,4 +1,4 @@
-use std::thread;
+use std::{thread, time::Instant};
 
 use ethers::{
     prelude::AbiError,
@@ -104,7 +104,7 @@ impl NetworkHandler {
         balance_changes: &Vec<BalanceChange>,
         _block_number: &U64,
     ) {
-        // let inst = Instant::now();
+        let inst = Instant::now();
         let mut reserve_table = self.price_oracle.get_market_reserves().await;
 
         for balance_change in balance_changes {
@@ -184,8 +184,9 @@ impl NetworkHandler {
             }
 
             println!(
-                "{} weth",
-                format_units(best_route_result.ref_profit_loss, 18).unwrap()
+                "{} weth in {:?}",
+                format_units(best_route_result.ref_profit_loss, 18).unwrap(),
+                inst.elapsed()
             );
 
             // if let Ok(transaction_data) =

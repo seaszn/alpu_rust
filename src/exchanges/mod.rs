@@ -130,7 +130,6 @@ pub async fn get_market_reserves(
         result.append(&mut call_result);
     }
 
-    println!("testing markets: {}", result.len());
     return result;
 }
 

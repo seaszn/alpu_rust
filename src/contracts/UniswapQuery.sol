@@ -3,8 +3,23 @@ pragma solidity ^0.8.19;
 
 pragma experimental ABIEncoderV2;
 
-import "./interfaces/IUniswapV2Pair.sol";
-import "./interfaces/IStableSwapPair.sol";
+interface IUniswapV2Pair {
+    function token0() external view returns (address);
+    function token1() external view returns (address);
+    function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast);
+}
+
+interface IStableSwapPair {
+    function token0() external view returns (address);
+    function token1() external view returns (address);
+
+    function getReserves()
+        external
+        view
+        returns (uint256 reserve0, uint256 reserve1, uint256 blockTimestampLast);
+
+    function isStable() external view returns (bool);
+}
 
 abstract contract UniswapV2Factory {
     mapping(address => mapping(address => address)) public getPair;

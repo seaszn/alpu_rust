@@ -36,6 +36,7 @@ Generated\ Files/
 
 # MSTest test Results
 [Tt]est[Rr]esult*/
+[Tt]arget*/
 [Bb]uild[Ll]og.*
 
 # NUNIT

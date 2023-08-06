@@ -78,7 +78,6 @@ impl PriceOracle {
         self.market_join_handle = Some(thread::spawn(move || {
             handle.spawn(async move {
                 loop {
-                    // // let inst = Instant::now();
                     let mut reserve_table: crate::types::OrganizedList<MarketState> =
                         get_market_reserves(
                             &cache_reference.markets,
