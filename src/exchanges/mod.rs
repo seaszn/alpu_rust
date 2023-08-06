@@ -2,7 +2,7 @@ use std::{io::Error, vec};
 
 use ethers::{
     prelude::AbiError,
-    types::Bytes,
+    types::{Bytes, U512},
     types::{H160, U256},
 };
 use tokio::task::JoinSet;
@@ -139,13 +139,13 @@ pub fn calculate_amount_out(
     input_amount: &U256,
     market: &Market,
     token_in: &'static Token,
-) -> U256 {
+) -> U512 {
     return match market_state {
         MarketState::UniswapV2(reserves) => {
-            uniswap_v2::calculate_amount_out(market, reserves, input_amount, token_in)
+            uniswap_v2::calculate_amount_out(market, reserves, &U512::from(input_amount), token_in)
         }
         MarketState::StableSwap(reserves) => {
-            stable_swap::calculate_amount_out(market, reserves, input_amount, token_in)
+            stable_swap::calculate_amount_out(market, reserves, &U512::from(input_amount), token_in)
         }
     };
 }

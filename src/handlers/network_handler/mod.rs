@@ -3,7 +3,6 @@ use std::{thread, time::Instant};
 use ethers::{
     prelude::AbiError,
     types::{Address, Bytes, TransactionRequest, U64},
-    utils::format_units,
 };
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
@@ -116,21 +115,25 @@ impl NetworkHandler {
         let market_ids: Vec<usize> = balance_changes.par_iter().map(|x| x.market.id).collect();
         let price_table = self.price_oracle.get_ref_price_table().await;
 
-        let _route_results: Vec<RouteResult> = RUNTIME_ROUTES
+        let route_results: Vec<RouteResult> = RUNTIME_ROUTES
             .read()
             .unwrap()
             .par_iter()
             .filter_map(|x| {
-                return x.calculate_result(&reserve_table, &price_table, &market_ids);
+                if x.contains_any_market(&market_ids) {
+                    return x.calculate_result(&reserve_table, &price_table);
+                } else {
+                    return None;
+                }
             })
             .collect();
 
         println!(
-            "found {} profitable routes in {:?}",
-            _route_results.len(),
+            "calculated {} route results in {:?}",
+            route_results.len(),
             inst.elapsed()
         );
-        
+
         // // for market_id in market_ids {
         // //     println!("id: {}", market_id);
         // //     println!("market {:#?}", self.runtime_cache.markets[*market_id]);
@@ -225,7 +228,7 @@ impl NetworkHandler {
             &EXECUTE_TX_BUNDLE_FUNCTION,
             BundleExecutionCall {
                 token: best_route_result.base_token.contract_address,
-                amount_to_first_market: volume,
+                amount_to_first_market: volume.as_u128().into(),
                 targets,
                 payloads,
             },

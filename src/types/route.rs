@@ -1,4 +1,4 @@
-use ethers::types::U256;
+use ethers::{types::U256, types::U512};
 use itertools::Itertools;
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 
@@ -19,7 +19,7 @@ pub struct Route {
     pub base_token: &'static Token,
 
     //private
-    market_fee_data: Vec<(&'static U256, &'static U256)>,
+    market_fee_data: Vec<(&'static U512, &'static U512)>,
     market_ids: Vec<usize>,
 }
 pub struct RouteResult {
@@ -29,7 +29,6 @@ pub struct RouteResult {
     pub profit_loss: U256,
     pub ref_profit_loss: U256,
     pub transactions: OrganizedList<SwapLog>,
-    // pub route_reserves: Vec<(OrgValue<Reserves>, &'static OrgValue<Market>)>,
 }
 
 impl Route {
@@ -38,29 +37,28 @@ impl Route {
         &self,
         reserve_table: &OrganizedList<MarketState>,
         price_table: &PriceTable,
-        affected_markets: &Vec<usize>,
     ) -> Option<RouteResult> {
-        if self.contains_any_market(affected_markets) {
-            let liquidity: UniswapV2MarketState = self.calculate_circ_liquidity(reserve_table);
-            let (fee_multiplier, multiplier) = self.market_fee_data[0];
-
-            let feed_liquidity_sqrt =
-                ((liquidity.0 * liquidity.1 * fee_multiplier) / multiplier).integer_sqrt();
-
-            if feed_liquidity_sqrt > liquidity.0 {
-                let input_amount =
-                    (feed_liquidity_sqrt - liquidity.0) * multiplier / fee_multiplier;
-
-                return self.calculate_circ_profit(
-                    reserve_table,
-                    price_table,
-                    input_amount,
-                    self.base_token,
-                );
-            }
-        }
-
+        let liquidity: UniswapV2MarketState = self.calculate_circ_liquidity(reserve_table);
+        let (fee_multiplier, multiplier) = self.market_fee_data[0];
         return None;
+
+        // let feed_liquidity_sqrt =
+        //     ((liquidity.0 * liquidity.1 * fee_multiplier) / multiplier).integer_sqrt();
+
+        // if feed_liquidity_sqrt > liquidity.0 {
+        //     let input_amount =
+        //         (feed_liquidity_sqrt - liquidity.0) * multiplier / fee_multiplier;
+
+        //     // return self.calculate_circ_profit(
+        //     //     reserve_table,
+        //     //     price_table,
+        //     //     input_amount,
+        //     //     self.base_token,
+        //     // );
+        // }
+        // else{
+        //     return None;
+        // }
     }
 
     #[inline(always)]
@@ -76,32 +74,32 @@ impl Route {
             res = (res.1, res.0);
         }
 
-        for i in 1..self.markets.len() {
-            let market = self.markets[i];
-            let (fee_multiplier, mul) = self.market_fee_data[i];
-            let market_org_value = &reserve_table[market.id];
-            let market_reserves = market_org_value.value.get_reserves();
+        // for i in 1..self.markets.len() {
+        //     let market = self.markets[i];
+        //     let (fee_multiplier, mul) = self.market_fee_data[i];
+        //     let market_org_value = &reserve_table[market.id];
+        //     let market_reserves = market_org_value.value.get_reserves();
 
-            let reserve_0 = &market_reserves.0;
-            let reserve_1 = &market_reserves.1;
+        //     let reserve_0 = &market_reserves.0;
+        //     let reserve_1 = &market_reserves.1;
 
-            let res_mul = (fee_multiplier * res.1) / mul;
+        //     let res_mul = (fee_multiplier * res.1) / mul;
 
-            if token_in.eq(&market.value.tokens[0]) {
-                // match market.protocol
-                let delta = reserve_0 + res_mul;
-                res.0 = (res.0 * reserve_0) / delta;
-                res.1 = (res_mul * reserve_1 / mul) / delta;
+        //     if token_in.eq(&market.value.tokens[0]) {
+        //         // match market.protocol
+        //         let delta = reserve_0 + res_mul;
+        //         res.0 = (res.0 * reserve_0) / delta;
+        //         res.1 = (res_mul * reserve_1 / mul) / delta;
 
-                token_in = &market.value.tokens[1];
-            } else {
-                let delta = reserve_1 + res_mul;
-                res.0 = (res.0 * reserve_1) / delta;
-                res.1 = (res_mul * reserve_0) / delta; //TODO: if results weird, change to reserve 1
+        //         token_in = &market.value.tokens[1];
+        //     } else {
+        //         let delta = reserve_1 + res_mul;
+        //         res.0 = (res.0 * reserve_1) / delta;
+        //         res.1 = (res_mul * reserve_0) / delta; //TODO: if results weird, change to reserve 1
 
-                token_in = &market.value.tokens[0];
-            }
-        }
+        //         token_in = &market.value.tokens[0];
+        //     }
+        // }
 
         return res;
     }
@@ -159,7 +157,7 @@ impl Route {
     }
 
     #[inline(always)]
-    fn contains_any_market(&self, market_ids: &Vec<usize>) -> bool {
+    pub fn contains_any_market(&self, market_ids: &Vec<usize>) -> bool {
         for local_market_id in &self.market_ids {
             if market_ids.iter().any(|x| x == local_market_id) {
                 return true;
@@ -171,7 +169,7 @@ impl Route {
 
     #[inline(always)]
     pub fn new(markets: Vec<&'static OrgValue<Market>>, base_token: &'static Token) -> Route {
-        let market_fee_data: Vec<(&U256, &U256)> =
+        let market_fee_data: Vec<(&U512, &U512)> =
             markets.iter().map(|x| x.value.get_fee_data()).collect_vec();
 
         let market_ids: Vec<usize> = markets.iter().map(|x| x.id).collect_vec();

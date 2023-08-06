@@ -35,7 +35,7 @@ lazy_static! {
     static ref SWAP_METHOD: Function = AbiParser::default()
         .parse_function("swap(uint256,uint256,address,bytes)")
         .unwrap();
-    static ref POW_18: U256 = U256::from(10).pow(18.into());
+    static ref POW_18: U512 = U512::from(10).pow(18.into());
 }
 
 #[inline(always)]
@@ -66,7 +66,7 @@ pub async fn get_market_reserves(
                         let raw_reserves: [U256; 3] = response[i];
                         result.push((
                             market_values[i].id,
-                            MarketState::StableSwap((raw_reserves[0], raw_reserves[1])),
+                            MarketState::StableSwap((raw_reserves[0].into(), raw_reserves[1].into())),
                         ));
                     }
 
@@ -104,8 +104,8 @@ pub fn populate_swap(swap: &SwapLog, to: &H160) -> Result<Bytes, AbiError> {
     return ethers::contract::encode_function_data::<types::SwapCall>(
         &SWAP_METHOD,
         SwapCall {
-            amount_0_out: swap.amount_0_out,
-            amount_1_out: swap.amount_1_out,
+            amount_0_out: swap.amount_0_out.as_u128().into(),
+            amount_1_out: swap.amount_1_out.as_u128().into(),
             to: *to,
             data: Bytes::new(),
         },
@@ -255,14 +255,14 @@ pub fn parse_balance_changes(
 pub fn calculate_amount_out(
     market: &Market,
     reserves: &StableSwapMarketState,
-    input_amount: &U256,
+    input_amount: &U512,
     token_in: &'static Token,
-) -> U256 {
+) -> U512 {
     if market.stable {
         if token_in.eq(market.tokens[0]) {
             let (fee_mul, mul) = market.get_fee_data();
-            let token_in_pow = U256::from(10).pow(market.tokens[0].decimals.into());
-            let token_out_pow = U256::from(10).pow(market.tokens[1].decimals.into());
+            let token_in_pow = U512::from(10).pow(market.tokens[0].decimals.into());
+            let token_out_pow = U512::from(10).pow(market.tokens[1].decimals.into());
 
             let amount_in_with_fee = (input_amount * fee_mul) / mul;
             let amount_in_formatted = amount_in_with_fee * &*POW_18 / token_in_pow;
@@ -284,7 +284,7 @@ pub fn calculate_amount_out(
     }
 }
 
-fn get_y(x0: U256, xy: U256, mut y: U256) -> U256 {
+fn get_y(x0: U512, xy: U512, mut y: U512) -> U512 {
     for _ in 0..255 {
         let prev_y = y;
         let k = get_f(x0, y);
@@ -296,11 +296,11 @@ fn get_y(x0: U256, xy: U256, mut y: U256) -> U256 {
         }
 
         if y > prev_y {
-            if (y - prev_y).le(&U256::one()) {
+            if (y - prev_y).le(&U512::one()) {
                 return y;
             }
         } else {
-            if (prev_y - y).le(&U256::one()) {
+            if (prev_y - y).le(&U512::one()) {
                 return y;
             }
         }
@@ -309,11 +309,11 @@ fn get_y(x0: U256, xy: U256, mut y: U256) -> U256 {
     return y;
 }
 
-fn get_f(x0: U256, y: U256) -> U256 {
+fn get_f(x0: U512, y: U512) -> U512 {
     return x0 * (y * y / *POW_18 * y / *POW_18) / *POW_18
         + (x0 * x0 / *POW_18 * x0 / *POW_18) * y / *POW_18;
 }
 
-fn get_d(x0: U256, y: U256) -> U256 {
+fn get_d(x0: U512, y: U512) -> U512 {
     return (x0 * (y * y / *POW_18) / *POW_18 + (x0 * x0 / *POW_18 * x0 / *POW_18)).mul(3);
 }

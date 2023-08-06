@@ -216,8 +216,8 @@ pub async fn get_market_reserves(
                         result.push((
                             market_values[i].id,
                             MarketState::UniswapV2((
-                                U256::from(raw_reserves[0]),
-                                U256::from(raw_reserves[1]),
+                                U512::from(raw_reserves[0]),
+                                U512::from(raw_reserves[1]),
                             )),
                         ))
                     }
@@ -250,9 +250,9 @@ pub async fn get_market_reserves(
 pub fn calculate_amount_out(
     market: &Market,
     reserves: &UniswapV2MarketState,
-    input_amount: &U256,
+    input_amount: &U512,
     token_in: &'static Token,
-) -> U256 {
+) -> U512 {
     if token_in.eq(market.tokens[0]) {
         let (fee_multiplier, multiplier) = market.get_fee_data();
 

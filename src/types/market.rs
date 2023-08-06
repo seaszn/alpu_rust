@@ -5,7 +5,7 @@ use crate::{env::RuntimeCache, exchanges::{types::Protocol, calculate_amount_out
 use super::{OrgValue, Token, MarketState};
 
 lazy_static! {
-    static ref BASE_FEE_MUL: U256 = U256::from(10000u128);
+    static ref BASE_FEE_MUL: U512 = U512::from(10000u128);
 }
 
 #[derive(Clone, Debug, Copy, PartialEq, Eq,)]
@@ -15,7 +15,7 @@ pub struct Market {
     pub fee: i32,
     pub stable: bool,
     pub protocol: Protocol,
-    fee_mul: U256,
+    fee_mul: U512,
 }
 
 unsafe impl Send for Market {
@@ -40,7 +40,7 @@ impl Market {
             fee,
             stable,
             protocol,
-            fee_mul: U256::from(10000u128 - fee as u128),
+            fee_mul: U512::from(10000u128 - fee as u128),
         };
     }
 
@@ -59,7 +59,7 @@ impl Market {
     }
 
     #[inline(always)]
-    pub fn get_fee_data(&self) -> (&U256, &U256) {
+    pub fn get_fee_data(&self) -> (&U512, &U512) {
         return (
             &self.fee_mul,
             &BASE_FEE_MUL,
@@ -68,6 +68,6 @@ impl Market {
 
     #[inline(always)]
     pub fn amount_out(&self, market_state: &MarketState, input_amount: &U256, token_in: &'static Token) -> U256{
-        return calculate_amount_out(market_state, input_amount, self, token_in);
+        return calculate_amount_out(market_state, input_amount, self, token_in).as_u128().into();
     }
 }
