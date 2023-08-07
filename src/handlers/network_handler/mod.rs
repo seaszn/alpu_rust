@@ -1,8 +1,8 @@
-use std::{thread, time::Instant};
+use std::thread;
 
 use ethers::{
     prelude::AbiError,
-    types::{Address, Bytes, TransactionRequest, U64}, utils::format_units,
+    types::{Address, Bytes, TransactionRequest, U64},
 };
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
@@ -103,7 +103,7 @@ impl NetworkHandler {
         balance_changes: &Vec<BalanceChange>,
         _block_number: &U64,
     ) {
-        let inst = Instant::now();
+        // let inst = Instant::now();
         let mut reserve_table = self.price_oracle.get_market_reserves().await;
 
         for balance_change in balance_changes {
@@ -115,7 +115,7 @@ impl NetworkHandler {
         let market_ids: Vec<usize> = balance_changes.par_iter().map(|x| x.market.id).collect();
         let price_table = self.price_oracle.get_ref_price_table().await;
 
-        let route_results: Vec<RouteResult> = RUNTIME_ROUTES
+        let _route_results: Vec<RouteResult> = RUNTIME_ROUTES
             .read()
             .unwrap()
             .par_iter()

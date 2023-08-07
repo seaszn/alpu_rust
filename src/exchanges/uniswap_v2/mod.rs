@@ -284,3 +284,7 @@ pub fn calc_circ_liq_step(
 
     return (l_0, l_1);
 }
+
+// let delta = amount_in_with_fee + reserves.0;
+// let l_0 = (res0 * reserves.0) / delta;
+// let l_1 = ((amount_in_with_fee * reserves.1) / mul) / delta;

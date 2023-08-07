@@ -12,10 +12,7 @@ use ethers::{
 };
 use itertools::Itertools;
 use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
-use std::{
-    io::{Error, ErrorKind},
-    ops::Mul,
-};
+use std::io::{Error, ErrorKind};
 
 use ethers::types::U256;
 
@@ -293,12 +290,12 @@ pub fn calculate_amount_out(
 fn get_y(x0: U256, xy: U256, mut y: U256) -> U256 {
     for _ in 0..255 {
         let prev_y = y;
-        let k = get_f(x0, y);
+        let liquidity = get_liquidity(x0, y);
 
-        if k < xy {
-            y = y - ((xy - k) * *POW_18 / get_d(x0, y))
+        if liquidity < xy {
+            y = y - ((xy - liquidity) * *POW_18 / get_denominator(x0, y))
         } else {
-            y = y - ((k - xy) * *POW_18 / get_d(x0, y))
+            y = y - ((liquidity - xy) * *POW_18 / get_denominator(x0, y))
         }
 
         if y > prev_y {
@@ -316,41 +313,64 @@ fn get_y(x0: U256, xy: U256, mut y: U256) -> U256 {
 }
 
 #[inline(always)]
-fn get_f(x0: U256, y: U256) -> U256 {
+fn get_liquidity(x0: U256, y: U256) -> U256 {
     return x0 * (y * y / *POW_18 * y / *POW_18) / *POW_18
         + (x0 * x0 / *POW_18 * x0 / *POW_18) * y / *POW_18;
 }
 
 #[inline(always)]
-fn get_d(x0: U256, y: U256) -> U256 {
+pub fn get_liquidity_u512(x0: &U512, y: &U512) -> U512 {
+    return x0 * (y * y / *POW_18_U512 * y / *POW_18_U512) / *POW_18_U512
+        + (x0 * x0 / *POW_18_U512 * x0 / *POW_18_U512) * y / *POW_18_U512;
+}
+
+#[inline(always)]
+fn get_denominator(x0: U256, y: U256) -> U256 {
     return x0 * 3 * (y * y / *POW_18) / *POW_18 + x0 * x0 / *POW_18 * x0 / *POW_18;
 }
 
 #[inline(always)]
-fn get_d_u512(x0: &U512, y: &U512) -> U512 {
+fn get_denominator_u512(x0: &U512, y: &U512) -> U512 {
     return x0 * 3 * (y * y / *POW_18) / *POW_18 + x0 * x0 / *POW_18 * x0 / *POW_18;
 }
-
 
 #[inline(always)]
 pub fn calc_circ_liq_step(
     previous: &(U512, U512),
     reserves: (&U512, &U512),
     market: &Market,
+    token_in: &'static Token,
 ) -> (U512, U512) {
     let (fee_multiplier, mul): (U512, U512) = {
         let temp = market.get_fee_data();
         (temp.0.into(), temp.1.into())
     };
 
+    let sorted_tokens: [&Token; 2] = {
+        if token_in.eq(market.tokens[0]) {
+            market.tokens
+        } else {
+            [market.tokens[1], market.tokens[0]]
+        }
+    };
+
+    let token_in_pow: U256 = parse_units(1, sorted_tokens[0].decimals).unwrap().into();
+    let token_out_pow: U256 = parse_units(1, sorted_tokens[1].decimals).unwrap().into();
+
     let amount_in_with_fee = previous.1 * fee_multiplier / mul;
-    let denominator = amount_in_with_fee + reserves.0.pow(4.into());
-    let d_2 = get_d_u512(reserves.0, &amount_in_with_fee);
+    let amount_in_formatted = amount_in_with_fee * *POW_18_U512 / token_in_pow;
 
-    println!("{:#?}", (denominator, d_2));
+    let reserve_0 = reserves.0 * &*POW_18_U512 / token_in_pow;
+    let reserve_1 = reserves.1 * &*POW_18_U512 / token_out_pow;
 
-    let l_0 = (previous.0 * reserves.0) / denominator; // (xy / d)
-    let l_1 = (amount_in_with_fee * reserves.1) / denominator; // (n / d)
+    // let denominator = amount_in_with_fee + reserves.0;
+    let denominator = get_denominator_u512(&(&amount_in_formatted + reserve_0), &reserve_1);
+    // let l_0 = (previous.0 * reserves.0) / denominator; // (xy / d)
+    let l_0 = get_liquidity_u512(&previous.0, &reserve_0) / denominator; //. mul(token_in_pow.into()) / *POW_18_U512;
+    let l_1 = get_liquidity_u512(&amount_in_formatted, &reserve_1) / denominator;
 
-    return (l_0, l_1);
+    return (
+        l_0 * U512::from(token_in_pow) / *POW_18_U512,
+        l_1 * U512::from(token_out_pow) / *POW_18_U512,
+    );
 }

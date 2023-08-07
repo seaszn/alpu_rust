@@ -1,12 +1,5 @@
 use std::{io::Error, vec};
 
-use ethers::{
-    prelude::AbiError,
-    types::{Bytes, U512},
-    types::{H160, U256},
-};
-use tokio::task::JoinSet;
-
 use crate::{
     env::{RuntimeCache, RuntimeConfig, EXECUTE_TX_BUNDLE_FUNCTION},
     exchanges::types::Protocol,
@@ -15,6 +8,12 @@ use crate::{
         market::Market, BalanceChange, MarketState, OrganizedList, SwapLog, Token, TransactionLog,
     },
 };
+use ethers::{
+    prelude::AbiError,
+    types::{Bytes, U512},
+    types::{H160, U256},
+};
+use tokio::task::JoinSet;
 
 pub use self::stable_swap::StableSwapMarketState;
 use self::types::Exchange;
@@ -22,7 +21,9 @@ pub use self::uniswap_v2::UniswapV2MarketState;
 
 mod stable_swap;
 pub mod types;
-mod uniswap_v2;
+pub mod uniswap_v2;
+
+pub use stable_swap::get_liquidity_u512;
 
 #[inline(always)]
 pub async fn get_exchange_markets(
@@ -186,7 +187,8 @@ pub fn calculate_circ_liquidity_step(
                         stable_swap::calc_circ_liq_step(
                             previous_reserves,
                             (reserve_0, reserve_1),
-                            &market
+                            &market,
+                            token_in,
                         )
                     } else {
                         uniswap_v2::calc_circ_liq_step(
@@ -205,14 +207,15 @@ pub fn calculate_circ_liquidity_step(
                 Protocol::UniswapV2 => uniswap_v2::calc_circ_liq_step(
                     &previous_reserves,
                     (reserve_1, reserve_0),
-                    &market
+                    &market,
                 ),
                 Protocol::StableSwap => {
                     if market.stable == true {
                         stable_swap::calc_circ_liq_step(
                             previous_reserves,
                             (reserve_1, reserve_0),
-                            &market
+                            &market,
+                            token_in,
                         )
                     } else {
                         uniswap_v2::calc_circ_liq_step(
