@@ -8,6 +8,7 @@ use crate::{
 use ethers::{
     abi::{AbiParser, Function},
     prelude::*,
+    utils::parse_units,
 };
 use itertools::Itertools;
 use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
@@ -35,7 +36,8 @@ lazy_static! {
     static ref SWAP_METHOD: Function = AbiParser::default()
         .parse_function("swap(uint256,uint256,address,bytes)")
         .unwrap();
-    static ref POW_18: U512 = U512::from(10).pow(18.into());
+    static ref POW_18: U256 = parse_units(1, 18).unwrap().into();
+    static ref POW_18_U512: U512 = (*POW_18).into();
 }
 
 #[inline(always)]
@@ -66,7 +68,10 @@ pub async fn get_market_reserves(
                         let raw_reserves: [U256; 3] = response[i];
                         result.push((
                             market_values[i].id,
-                            MarketState::StableSwap((raw_reserves[0].into(), raw_reserves[1].into())),
+                            MarketState::StableSwap((
+                                raw_reserves[0].into(),
+                                raw_reserves[1].into(),
+                            )),
                         ));
                     }
 
@@ -255,14 +260,14 @@ pub fn parse_balance_changes(
 pub fn calculate_amount_out(
     market: &Market,
     reserves: &StableSwapMarketState,
-    input_amount: &U512,
+    input_amount: &U256,
     token_in: &'static Token,
-) -> U512 {
+) -> U256 {
     if market.stable {
         if token_in.eq(market.tokens[0]) {
             let (fee_mul, mul) = market.get_fee_data();
-            let token_in_pow = U512::from(10).pow(market.tokens[0].decimals.into());
-            let token_out_pow = U512::from(10).pow(market.tokens[1].decimals.into());
+            let token_in_pow: U256 = parse_units(1, market.tokens[0].decimals).unwrap().into();
+            let token_out_pow: U256 = parse_units(1, market.tokens[1].decimals).unwrap().into();
 
             let amount_in_with_fee = (input_amount * fee_mul) / mul;
             let amount_in_formatted = amount_in_with_fee * &*POW_18 / token_in_pow;
@@ -271,7 +276,7 @@ pub fn calculate_amount_out(
             let reserve_1 = reserves.1 * &*POW_18 / token_out_pow;
 
             let a = (reserve_0 * reserve_1) / *POW_18;
-            let b = (reserve_0 * reserve_1) / *POW_18 + (reserve_1 * reserve_1) / &*POW_18;
+            let b = (reserve_0 * reserve_1) / *POW_18 + (reserve_1 * reserve_1) / *POW_18;
             let xy = a * b / *POW_18;
 
             let y = reserve_1 - get_y(amount_in_formatted + reserve_0, xy, reserve_1);
@@ -284,7 +289,8 @@ pub fn calculate_amount_out(
     }
 }
 
-fn get_y(x0: U512, xy: U512, mut y: U512) -> U512 {
+#[inline(always)]
+fn get_y(x0: U256, xy: U256, mut y: U256) -> U256 {
     for _ in 0..255 {
         let prev_y = y;
         let k = get_f(x0, y);
@@ -296,11 +302,11 @@ fn get_y(x0: U512, xy: U512, mut y: U512) -> U512 {
         }
 
         if y > prev_y {
-            if (y - prev_y).le(&U512::one()) {
+            if (y - prev_y).le(&U256::one()) {
                 return y;
             }
         } else {
-            if (prev_y - y).le(&U512::one()) {
+            if (prev_y - y).le(&U256::one()) {
                 return y;
             }
         }
@@ -309,11 +315,42 @@ fn get_y(x0: U512, xy: U512, mut y: U512) -> U512 {
     return y;
 }
 
-fn get_f(x0: U512, y: U512) -> U512 {
+#[inline(always)]
+fn get_f(x0: U256, y: U256) -> U256 {
     return x0 * (y * y / *POW_18 * y / *POW_18) / *POW_18
         + (x0 * x0 / *POW_18 * x0 / *POW_18) * y / *POW_18;
 }
 
-fn get_d(x0: U512, y: U512) -> U512 {
-    return (x0 * (y * y / *POW_18) / *POW_18 + (x0 * x0 / *POW_18 * x0 / *POW_18)).mul(3);
+#[inline(always)]
+fn get_d(x0: U256, y: U256) -> U256 {
+    return x0 * 3 * (y * y / *POW_18) / *POW_18 + x0 * x0 / *POW_18 * x0 / *POW_18;
+}
+
+#[inline(always)]
+fn get_d_u512(x0: &U512, y: &U512) -> U512 {
+    return x0 * 3 * (y * y / *POW_18) / *POW_18 + x0 * x0 / *POW_18 * x0 / *POW_18;
+}
+
+
+#[inline(always)]
+pub fn calc_circ_liq_step(
+    previous: &(U512, U512),
+    reserves: (&U512, &U512),
+    market: &Market,
+) -> (U512, U512) {
+    let (fee_multiplier, mul): (U512, U512) = {
+        let temp = market.get_fee_data();
+        (temp.0.into(), temp.1.into())
+    };
+
+    let amount_in_with_fee = previous.1 * fee_multiplier / mul;
+    let denominator = amount_in_with_fee + reserves.0.pow(4.into());
+    let d_2 = get_d_u512(reserves.0, &amount_in_with_fee);
+
+    println!("{:#?}", (denominator, d_2));
+
+    let l_0 = (previous.0 * reserves.0) / denominator; // (xy / d)
+    let l_1 = (amount_in_with_fee * reserves.1) / denominator; // (n / d)
+
+    return (l_0, l_1);
 }

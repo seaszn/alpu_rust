@@ -216,8 +216,8 @@ pub async fn get_market_reserves(
                         result.push((
                             market_values[i].id,
                             MarketState::UniswapV2((
-                                U512::from(raw_reserves[0]),
-                                U512::from(raw_reserves[1]),
+                                raw_reserves[0].into(),
+                                raw_reserves[1].into(),
                             )),
                         ))
                     }
@@ -250,9 +250,9 @@ pub async fn get_market_reserves(
 pub fn calculate_amount_out(
     market: &Market,
     reserves: &UniswapV2MarketState,
-    input_amount: &U512,
+    input_amount: &U256,
     token_in: &'static Token,
-) -> U512 {
+) -> U256 {
     if token_in.eq(market.tokens[0]) {
         let (fee_multiplier, multiplier) = market.get_fee_data();
 
@@ -263,4 +263,24 @@ pub fn calculate_amount_out(
     } else {
         return calculate_amount_out(market, &(reserves.1, reserves.0), input_amount, token_in);
     }
+}
+
+#[inline(always)]
+pub fn calc_circ_liq_step(
+    previous: &(U512, U512),
+    reserves: (&U512, &U512),
+    market: &Market,
+) -> (U512, U512) {
+    let (fee_multiplier, mul): (U512, U512) = {
+        let temp = market.get_fee_data();
+        (temp.0.into(), temp.1.into())
+    };
+
+    let amount_in_with_fee = previous.1 * fee_multiplier / mul;
+    let denominator = amount_in_with_fee + reserves.0;
+
+    let l_0 = (previous.0 * reserves.0) / denominator; // (xy / d)
+    let l_1 = (amount_in_with_fee * reserves.1) / denominator; // (n / d)
+
+    return (l_0, l_1);
 }

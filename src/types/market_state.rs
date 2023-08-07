@@ -1,3 +1,5 @@
+use ethers::types::U256;
+
 use super::BalanceChange;
 use crate::exchanges::{UniswapV2MarketState, StableSwapMarketState};
 
@@ -29,10 +31,11 @@ impl MarketState {
         }
     }
 
-    pub fn get_reserves(&self) -> UniswapV2MarketState {
+    pub fn get_reserves(&self) -> (U256, U256) {
         match self {
             MarketState::UniswapV2(res) => *res,
-            MarketState::StableSwap(res) => (res.0.pow(4.into()), res.1.pow(4.into())),
+            MarketState::StableSwap(res) => *res,
+            // MarketState::StableSwap(res) => (res.0.pow(4.into()), res.1.pow(4.into())),
         }
     }
 }

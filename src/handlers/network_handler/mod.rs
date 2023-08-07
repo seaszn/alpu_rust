@@ -2,7 +2,7 @@ use std::{thread, time::Instant};
 
 use ethers::{
     prelude::AbiError,
-    types::{Address, Bytes, TransactionRequest, U64},
+    types::{Address, Bytes, TransactionRequest, U64}, utils::format_units,
 };
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
@@ -128,12 +128,6 @@ impl NetworkHandler {
             })
             .collect();
 
-        println!(
-            "calculated {} route results in {:?}",
-            route_results.len(),
-            inst.elapsed()
-        );
-
         // // for market_id in market_ids {
         // //     println!("id: {}", market_id);
         // //     println!("market {:#?}", self.runtime_cache.markets[*market_id]);
@@ -157,6 +151,7 @@ impl NetworkHandler {
         //         format_units(best_route_result.ref_profit_loss, 18).unwrap(),
         //         inst.elapsed()
         //     );
+        // }
 
         //     // if let Ok(transaction_data) =
         //     //     self.build_bundled_transaction(best_route_result, self.runtime_config)
