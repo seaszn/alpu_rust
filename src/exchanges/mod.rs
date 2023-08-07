@@ -25,6 +25,8 @@ pub mod uniswap_v2;
 
 pub use stable_swap::get_liquidity_u512;
 
+pub const WEI_IN_ETHER_U512: U512 = U512([0x0de0b6b3a7640000, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0]);
+
 #[inline(always)]
 pub async fn get_exchange_markets(
     network: &'static Network,

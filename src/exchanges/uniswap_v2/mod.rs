@@ -279,8 +279,8 @@ pub fn calc_circ_liq_step(
     let amount_in_with_fee = previous.1 * fee_multiplier / mul;
     let denominator = amount_in_with_fee + reserves.0;
 
-    let l_0 = (previous.0 * reserves.0) / denominator; // (xy / d)
-    let l_1 = (amount_in_with_fee * reserves.1) / denominator; // (n / d)
+    let l_0 = (previous.0 * reserves.0) / denominator;
+    let l_1 = (amount_in_with_fee * reserves.1) / denominator;
 
     return (l_0, l_1);
 }

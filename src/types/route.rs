@@ -1,14 +1,10 @@
-use ethers::{
-    types::U256,
-    types::U512,
-    utils::{parse_ether, parse_units},
-};
+use ethers::{types::U256, types::U512, utils::parse_units};
 use itertools::Itertools;
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 
 use crate::{
     env::{RuntimeCache, RuntimeConfig},
-    exchanges::{self, calculate_circ_liquidity_step},
+    exchanges::{self, calculate_circ_liquidity_step, WEI_IN_ETHER_U512},
     networks::Network,
     RUNTIME_ROUTES,
 };
@@ -17,10 +13,7 @@ use super::{market::Market, MarketState, OrgValue, OrganizedList, PriceTable, Sw
 
 const ZERO_VALUE: U256 = U256::zero();
 
-lazy_static! {
-    static ref POW: U256 = parse_ether(1).unwrap().into();
-    static ref POW_18: U512 = (*POW).into();
-}
+lazy_static! {}
 
 #[derive(Debug, Clone)]
 pub struct Route {
@@ -68,10 +61,11 @@ impl Route {
                         .unwrap()
                         .into();
 
-                    let reserve_0 = circ_liquidity.0 * *POW_18 / token_in_pow;
-                    let reserve_1 = circ_liquidity.1 * *POW_18 / token_out_pow;
+                    let reserve_0 = circ_liquidity.0 * WEI_IN_ETHER_U512 / token_in_pow;
+                    let reserve_1 = circ_liquidity.1 * WEI_IN_ETHER_U512 / token_out_pow;
 
-                    let liquidity = exchanges::get_liquidity_u512(&reserve_0, &reserve_1) / *POW_18;
+                    let liquidity =
+                        exchanges::get_liquidity_u512(&reserve_0, &reserve_1) / WEI_IN_ETHER_U512;
 
                     ((liquidity * fee_multiplier) / multiplier).integer_sqrt()
                 } else {
