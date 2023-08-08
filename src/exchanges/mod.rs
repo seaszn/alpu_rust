@@ -10,8 +10,7 @@ use crate::{
 };
 use ethers::{
     prelude::AbiError,
-    types::{Bytes, U512},
-    types::{H160, U256},
+    types::{Bytes, H160, U256},
 };
 use tokio::task::JoinSet;
 
@@ -23,9 +22,7 @@ mod stable_swap;
 pub mod types;
 pub mod uniswap_v2;
 
-pub use stable_swap::get_liquidity_u512;
-
-pub const WEI_IN_ETHER_U512: U512 = U512([0x0de0b6b3a7640000, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0]);
+pub use stable_swap::get_f;
 
 #[inline(always)]
 pub async fn get_exchange_markets(
@@ -149,6 +146,7 @@ pub fn calculate_amount_out(
         }
         MarketState::StableSwap(reserves) => {
             stable_swap::calculate_amount_out(market, reserves, &input_amount, token_in)
+            // stable_swap::calculate_amount_out(market, reserves, &input_amount, token_in)
         }
     };
 }
@@ -169,66 +167,17 @@ pub fn populate_swap(swap_log: &SwapLog, recipient: &H160) -> Result<Bytes, AbiE
 pub fn calculate_circ_liquidity_step(
     market: &Market,
     reserves: (U256, U256),
-    previous_reserves: &(U512, U512),
+    previous_reserves: &(U256, U256),
     token_in: &'static Token,
-) -> ((U512, U512), &'static Token) {
-    let reserve_0: &U512 = &reserves.0.into();
-    let reserve_1: &U512 = &reserves.1.into();
-    // let res_mul: U512 = fee_multiplier * previous_reserves.1;
-
-    if token_in.eq(&market.tokens[0]) {
-        return (
-            match market.protocol {
-                Protocol::UniswapV2 => uniswap_v2::calc_circ_liq_step(
-                    previous_reserves,
-                    (reserve_0, reserve_1),
-                    &market,
-                ),
-                Protocol::StableSwap => {
-                    if market.stable == true {
-                        stable_swap::calc_circ_liq_step(
-                            previous_reserves,
-                            (reserve_0, reserve_1),
-                            &market,
-                            token_in,
-                        )
-                    } else {
-                        uniswap_v2::calc_circ_liq_step(
-                            previous_reserves,
-                            (reserve_0, reserve_1),
-                            &market,
-                        )
-                    }
-                }
-            },
-            market.tokens[1],
-        );
-    } else {
-        return (
-            match market.protocol {
-                Protocol::UniswapV2 => uniswap_v2::calc_circ_liq_step(
-                    &previous_reserves,
-                    (reserve_1, reserve_0),
-                    &market,
-                ),
-                Protocol::StableSwap => {
-                    if market.stable == true {
-                        stable_swap::calc_circ_liq_step(
-                            previous_reserves,
-                            (reserve_1, reserve_0),
-                            &market,
-                            token_in,
-                        )
-                    } else {
-                        uniswap_v2::calc_circ_liq_step(
-                            previous_reserves,
-                            (reserve_1, reserve_0),
-                            &market,
-                        )
-                    }
-                }
-            },
-            market.tokens[0],
-        );
-    }
+) -> (U256, U256) {
+    return match market.protocol {
+        Protocol::UniswapV2 => uniswap_v2::calc_circ_liq_step(previous_reserves, reserves, &market),
+        Protocol::StableSwap => {
+            if market.stable == true {
+                stable_swap::calc_circ_liq_step(previous_reserves, reserves, &market, token_in)
+            } else {
+                uniswap_v2::calc_circ_liq_step(previous_reserves, reserves, &market)
+            }
+        }
+    };
 }

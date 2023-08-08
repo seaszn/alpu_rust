@@ -140,8 +140,7 @@ impl PriceOracle {
                     let mut new_price_table = PriceTable::new();
                     for token in base_tokens {
                         let symbol: &String = token.ref_symbol.as_ref().unwrap();
-                        let token_ref_price =
-                            1f64 / value_map[symbol].as_str().unwrap().parse::<f64>().unwrap();
+                        let token_ref_price = 1f64 / value_map[symbol].as_str().unwrap().parse::<f64>().unwrap();
 
                         if let Ok(ParseUnits::U256(ref_price)) =
                             parse_units(token_ref_price.to_string(), weth_token.decimals)

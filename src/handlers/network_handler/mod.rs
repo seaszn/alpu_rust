@@ -118,7 +118,7 @@ impl NetworkHandler {
         let _route_results: Vec<RouteResult> = RUNTIME_ROUTES
             .read()
             .unwrap()
-            .par_iter()
+            .iter()
             .filter_map(|x| {
                 if x.contains_any_market(&market_ids) {
                     return x.calculate_result(&reserve_table, &price_table);

@@ -15,7 +15,7 @@ pub struct Market {
     pub fee: i32,
     pub stable: bool,
     pub protocol: Protocol,
-    fee_mul: U256,
+    pub fee_mul: U256,
 }
 
 unsafe impl Send for Market {
@@ -68,6 +68,6 @@ impl Market {
 
     #[inline(always)]
     pub fn amount_out(&self, market_state: &MarketState, input_amount: &U256, token_in: &'static Token) -> U256{
-        return calculate_amount_out(market_state, input_amount, self, token_in).as_u128().into();
+        return calculate_amount_out(market_state, input_amount, self, token_in);
     }
 }

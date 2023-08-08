@@ -1,10 +1,14 @@
-use ethers::{types::U256, types::U512, utils::parse_units};
+use ethers::{
+    types::U256,
+    types::U512,
+    utils::{parse_units, WEI_IN_ETHER},
+};
 use itertools::Itertools;
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 
 use crate::{
     env::{RuntimeCache, RuntimeConfig},
-    exchanges::{self, calculate_circ_liquidity_step, WEI_IN_ETHER_U512},
+    exchanges::{self, calculate_circ_liquidity_step},
     networks::Network,
     RUNTIME_ROUTES,
 };
@@ -40,14 +44,10 @@ impl Route {
         price_table: &PriceTable,
     ) -> Option<RouteResult> {
         let circ_liquidity = self.calculate_circ_liquidity(reserve_table);
-        let circ_liquidity_old = self.calculate_old_circ_liquidity(reserve_table);
 
-        let (fee_multiplier, multiplier): (U512, U512) = {
-            let temp = self.markets[0].value.get_fee_data();
-            (temp.0.into(), temp.1.into())
-        };
-
+        let (fee_multiplier, multiplier) = self.markets[0].value.get_fee_data();
         let first_market = &self.markets[0].value;
+
         let liq_sqrt = match first_market.protocol {
             exchanges::types::Protocol::UniswapV2 => {
                 ((circ_liquidity.0 * circ_liquidity.1 * fee_multiplier) / multiplier).integer_sqrt()
@@ -61,13 +61,14 @@ impl Route {
                         .unwrap()
                         .into();
 
-                    let reserve_0 = circ_liquidity.0 * WEI_IN_ETHER_U512 / token_in_pow;
-                    let reserve_1 = circ_liquidity.1 * WEI_IN_ETHER_U512 / token_out_pow;
+                    let reserve_0 = circ_liquidity.0 * WEI_IN_ETHER / token_in_pow;
+                    let reserve_1 = circ_liquidity.1 * WEI_IN_ETHER / token_out_pow;
 
-                    let liquidity =
-                        exchanges::get_liquidity_u512(&reserve_0, &reserve_1) / WEI_IN_ETHER_U512;
+                    let liquidity = exchanges::get_f(&reserve_0, &reserve_1) / WEI_IN_ETHER;
 
                     ((liquidity * fee_multiplier) / multiplier).integer_sqrt()
+                    // ((circ_liquidity.0 * circ_liquidity.1 * fee_multiplier) / multiplier)
+                    //     .integer_sqrt()
                 } else {
                     ((circ_liquidity.0 * circ_liquidity.1 * fee_multiplier) / multiplier)
                         .integer_sqrt()
@@ -75,32 +76,12 @@ impl Route {
             }
         };
 
-        let old_feed_liquidity_sqrt =
-            ((circ_liquidity_old.0 * circ_liquidity_old.1 * fee_multiplier) / multiplier)
-                .integer_sqrt();
+        if self.markets.par_iter().any(|x| x.value.stable == true) {
+            if liq_sqrt > circ_liquidity.0 {
+                let input_amount: U256 =
+                    (liq_sqrt - circ_liquidity.0) * multiplier / fee_multiplier;
 
-        if self.markets.iter().any(|x| x.value.stable == true) {
-            if old_feed_liquidity_sqrt > circ_liquidity_old.0 && liq_sqrt > circ_liquidity.0 {
-                let old_input_amount: U256 = parse_units(
-                    (old_feed_liquidity_sqrt - circ_liquidity_old.0) * multiplier / fee_multiplier,
-                    0,
-                )
-                .unwrap()
-                .into();
-
-                let input_amount: U256 = parse_units(
-                    (liq_sqrt - circ_liquidity.0) * multiplier / fee_multiplier,
-                    0,
-                )
-                .unwrap()
-                .into();
-                // input_amount.leading_zeros();
-                // formatu
-                // input_amount.to_big_endian(f.as_mut_slice());
-                // let mut f: Vec<u8> = vec![];
-                println!("{:#?}", (input_amount, old_input_amount));
-
-                let _old_result = match self.calculate_circ_profit(
+                let result = match self.calculate_circ_profit(
                     reserve_table,
                     price_table,
                     input_amount,
@@ -144,15 +125,11 @@ impl Route {
     }
 
     #[inline(always)]
-    fn calculate_circ_liquidity(&self, reserve_table: &OrganizedList<MarketState>) -> (U512, U512) {
+    fn calculate_circ_liquidity(&self, reserve_table: &OrganizedList<MarketState>) -> (U256, U256) {
         let first_reserve = &reserve_table[self.markets[0].id];
         let mut token_in = self.base_token;
 
-        let mut res: (U512, U512) = {
-            let temp = first_reserve.value.get_reserves();
-            (temp.0.into(), temp.1.into())
-        };
-
+        let mut res = first_reserve.value.get_reserves();
         if self.markets[0].value.tokens[0].ne(token_in) {
             res = (res.1, res.0);
         }
@@ -160,56 +137,20 @@ impl Route {
         for i in 1..self.markets.len() {
             let market = self.markets[i];
             let market_org_value = &reserve_table[market.id];
+
             let market_reserves = market_org_value.value.get_reserves();
-
-            (res, token_in) =
-                calculate_circ_liquidity_step(&market.value, market_reserves, &res, token_in);
-        }
-
-        return res;
-    }
-
-    #[inline(always)]
-    fn calculate_old_circ_liquidity(
-        &self,
-        reserve_table: &OrganizedList<MarketState>,
-    ) -> (U512, U512) {
-        let first_reserve = &reserve_table[self.markets[0].id];
-        let mut token_in = self.base_token;
-
-        let mut res: (U512, U512) = {
-            let temp = first_reserve.value.get_reserves();
-            (temp.0.into(), temp.1.into())
-        };
-
-        if self.markets[0].value.tokens[0].ne(token_in) {
-            res = (res.1, res.0);
-        }
-
-        for i in 1..self.markets.len() {
-            let market = self.markets[i];
-            let market_org_value = &reserve_table[market.id];
-            let market_reserves = market_org_value.value.get_reserves();
-
-            let reserve_0: U512 = market_reserves.0.into();
-            let reserve_1: U512 = market_reserves.1.into();
-            if token_in.eq(market.value.tokens[0]) {
-                res = exchanges::uniswap_v2::calc_circ_liq_step(
-                    &res,
-                    (&reserve_0, &reserve_1),
-                    &market.value,
-                );
+            if market.value.tokens[0].eq(token_in) {
+                res = calculate_circ_liquidity_step(&market.value, market_reserves, &res, token_in);
                 token_in = market.value.tokens[1];
             } else {
-                res = exchanges::uniswap_v2::calc_circ_liq_step(
-                    &res,
-                    (&reserve_1, &reserve_0),
+                res = calculate_circ_liquidity_step(
                     &market.value,
+                    (market_reserves.1, market_reserves.0),
+                    &res,
+                    token_in,
                 );
                 token_in = market.value.tokens[0];
             }
-            // (res, token_in) =
-            // exchanges::uniswap_v2::calc_circ_liq_step(&res, (market_reserves.0.into(), market_reserves.1.into()), &market);
         }
 
         return res;
@@ -231,8 +172,10 @@ impl Route {
             let market_value = &market.value;
             let token_0 = market_value.tokens[0];
 
+            // println!("test");
             if token_in == token_0 {
                 input_amount = market_value.amount_out(&market_state, &input_amount, token_in);
+                // market_value.amount_out(&market_state, &input_amount, token_in);
                 token_in = market_value.tokens[1];
 
                 swap_transactions.add_value(SwapLog {
@@ -241,6 +184,7 @@ impl Route {
                     amount_1_out: input_amount,
                 });
             } else {
+                // market_value.amount_out(&market_state, &input_amount, token_in);
                 input_amount = market_value.amount_out(&market_state, &input_amount, token_in);
                 token_in = token_0;
 
@@ -265,6 +209,8 @@ impl Route {
         } else {
             None
         }
+
+        // return None;
     }
 
     #[inline(always)]

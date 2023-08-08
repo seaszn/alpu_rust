@@ -14,7 +14,6 @@ use itertools::Itertools;
 use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use std::io::{Error, ErrorKind};
 
-use super::WEI_IN_ETHER_U512;
 use ethers::types::U256;
 
 use self::types::{StableSwapFactory, StableSwapPair, SwapCall, SwapFilter};
@@ -254,46 +253,61 @@ pub fn parse_balance_changes(
 #[inline(always)]
 pub fn calculate_amount_out(
     market: &Market,
-    reserves: &StableSwapMarketState,
+    reserves: &(U256, U256),
     input_amount: &U256,
     token_in: &'static Token,
 ) -> U256 {
-    if market.stable {
-        if token_in.eq(market.tokens[0]) {
-            let (fee_mul, mul) = market.get_fee_data();
-            let token_in_pow: U256 = parse_units(1, market.tokens[0].decimals).unwrap().into();
-            let token_out_pow: U256 = parse_units(1, market.tokens[1].decimals).unwrap().into();
+    if market.stable == true {
+        let sorted_tokens = {
+            match market.tokens[0].eq(token_in) {
+                true => market.tokens,
+                false => [market.tokens[1], market.tokens[0]],
+            }
+        };
 
-            let amount_in_with_fee = (input_amount * fee_mul) / mul;
-            let amount_in_formatted = amount_in_with_fee * WEI_IN_ETHER / token_in_pow;
+        let sorted_reserves = {
+            match market.tokens[0].eq(token_in) {
+                true => *reserves,
+                false => (reserves.1, reserves.0),
+            }
+        };
 
-            let reserve_0 = reserves.0 * WEI_IN_ETHER / token_in_pow;
-            let reserve_1 = reserves.1 * WEI_IN_ETHER / token_out_pow;
+        let (fee_mul, mul) = market.get_fee_data();
+        let token_in_pow: U256 = parse_units(1, sorted_tokens[0].decimals).unwrap().into();
+        let token_out_pow: U256 = parse_units(1, sorted_tokens[1].decimals).unwrap().into();
 
-            let a = (reserve_0 * reserve_1) / WEI_IN_ETHER;
-            let b = (reserve_0 * reserve_1) / WEI_IN_ETHER + (reserve_1 * reserve_1) / WEI_IN_ETHER;
-            let xy = a * b / WEI_IN_ETHER;
+        let amount_in_with_fee = (input_amount * fee_mul) / mul;
+        let amount_in_formatted = amount_in_with_fee * WEI_IN_ETHER / token_in_pow;
 
-            let y = reserve_1 - get_y(amount_in_formatted + reserve_0, xy, reserve_1);
-            return y * token_out_pow / WEI_IN_ETHER;
-        } else {
-            return calculate_amount_out(market, &(reserves.1, reserves.0), input_amount, token_in);
-        }
+        let reserve_0 = sorted_reserves.0 * WEI_IN_ETHER / token_in_pow;
+        let reserve_1 = sorted_reserves.1 * WEI_IN_ETHER / token_out_pow;
+
+        let xy = get_k(&reserve_0, &reserve_1);
+        let y = reserve_1 - get_y(amount_in_formatted + reserve_0, xy, reserve_1);
+
+        return y * token_out_pow / WEI_IN_ETHER;
     } else {
         return uniswap_v2::calculate_amount_out(market, reserves, input_amount, token_in);
     }
 }
 
+pub fn get_k(x: &U256, y: &U256) -> U256 {
+    let a = (x * y) / WEI_IN_ETHER;
+    let b = (x * x) / WEI_IN_ETHER + (y * y) / WEI_IN_ETHER;
+    return a * b / WEI_IN_ETHER;
+}
+
+// confirmed
 #[inline(always)]
 fn get_y(x0: U256, xy: U256, mut y: U256) -> U256 {
     for _ in 0..255 {
         let prev_y = y;
-        let liquidity = get_liquidity(x0, y);
+        let k = get_f(&x0, &y);
 
-        if liquidity < xy {
-            y = y - ((xy - liquidity) * WEI_IN_ETHER / get_denominator(x0, y))
+        if k < xy {
+            y += (xy - k) * WEI_IN_ETHER / get_d(&x0, &y)
         } else {
-            y = y - ((liquidity - xy) * WEI_IN_ETHER / get_denominator(x0, y))
+            y -= (k - xy) * WEI_IN_ETHER / get_d(&x0, &y)
         }
 
         if y > prev_y {
@@ -310,41 +324,27 @@ fn get_y(x0: U256, xy: U256, mut y: U256) -> U256 {
     return y;
 }
 
+// confirmed
 #[inline(always)]
-fn get_liquidity(x0: U256, y: U256) -> U256 {
+pub fn get_f(x0: &U256, y: &U256) -> U256 {
     return x0 * (y * y / WEI_IN_ETHER * y / WEI_IN_ETHER) / WEI_IN_ETHER
         + (x0 * x0 / WEI_IN_ETHER * x0 / WEI_IN_ETHER) * y / WEI_IN_ETHER;
 }
 
 #[inline(always)]
-pub fn get_liquidity_u512(x0: &U512, y: &U512) -> U512 {
-    return x0 * (y * y / WEI_IN_ETHER * y / WEI_IN_ETHER) / WEI_IN_ETHER
-        + (x0 * x0 / WEI_IN_ETHER * x0 / WEI_IN_ETHER) * y / WEI_IN_ETHER;
-}
-
-#[inline(always)]
-fn get_denominator(x0: U256, y: U256) -> U256 {
-    return x0 * 3 * (y * y / WEI_IN_ETHER) / WEI_IN_ETHER
-        + x0 * x0 / WEI_IN_ETHER * x0 / WEI_IN_ETHER;
-}
-
-#[inline(always)]
-fn get_denominator_u512(x0: &U512, y: &U512) -> U512 {
-    return x0 * 3 * (y * y / WEI_IN_ETHER) / WEI_IN_ETHER
-        + x0 * x0 / WEI_IN_ETHER * x0 / WEI_IN_ETHER;
+fn get_d(x0: &U256, y: &U256) -> U256 {
+    return U256::from(3) * x0 * (y * y / WEI_IN_ETHER) / WEI_IN_ETHER
+        + (x0 * x0 / WEI_IN_ETHER * x0 / WEI_IN_ETHER);
 }
 
 #[inline(always)]
 pub fn calc_circ_liq_step(
-    previous: &(U512, U512),
-    reserves: (&U512, &U512),
+    previous: &(U256, U256),
+    reserves: (U256, U256),
     market: &Market,
     token_in: &'static Token,
-) -> (U512, U512) {
-    let (fee_multiplier, mul): (U512, U512) = {
-        let temp = market.get_fee_data();
-        (temp.0.into(), temp.1.into())
-    };
+) -> (U256, U256) {
+    let (fee_multiplier, mul) = market.get_fee_data();
 
     let sorted_tokens: [&Token; 2] = {
         if token_in.eq(market.tokens[0]) {
@@ -358,19 +358,17 @@ pub fn calc_circ_liq_step(
     let token_out_pow: U256 = parse_units(1, sorted_tokens[1].decimals).unwrap().into();
 
     let amount_in_with_fee = previous.1 * fee_multiplier / mul;
-    let amount_in_formatted = amount_in_with_fee * WEI_IN_ETHER_U512 / token_in_pow;
+    let amount_in_formatted = amount_in_with_fee * WEI_IN_ETHER / token_in_pow;
 
-    let reserve_0 = reserves.0 * WEI_IN_ETHER_U512 / token_in_pow;
-    let reserve_1 = reserves.1 * WEI_IN_ETHER_U512 / token_out_pow;
+    let reserve_0 = reserves.0 * WEI_IN_ETHER / token_in_pow;
+    let reserve_1 = reserves.1 * WEI_IN_ETHER / token_out_pow;
 
-    // let denominator = amount_in_with_fee + reserves.0;
-    let denominator = get_denominator_u512(&(&amount_in_formatted + reserve_0), &reserve_1);
-    // let l_0 = (previous.0 * reserves.0) / denominator; // (xy / d)
-    let l_0 = get_liquidity_u512(&previous.0, &reserve_0) / denominator; //. mul(token_in_pow.into()) / *POW_18_U512;
-    let l_1 = get_liquidity_u512(&amount_in_formatted, &reserve_1) / denominator;
+    let denominator = get_d(&(amount_in_formatted + reserve_0), &reserve_1);
+    let l_0 = get_f(&previous.0, &reserve_0) / denominator; //. mul(token_in_pow.into()) / *POW_18_U512;
+    let l_1 = get_f(&amount_in_formatted, &reserve_1) / denominator;
 
     return (
-        l_0 * U512::from(token_in_pow) / WEI_IN_ETHER_U512,
-        l_1 * U512::from(token_out_pow) / WEI_IN_ETHER_U512,
+        l_0 * token_in_pow / WEI_IN_ETHER,
+        l_1 * token_out_pow / WEI_IN_ETHER,
     );
 }
