@@ -1,10 +1,10 @@
 use ethers::{
-    types::U256,
-    types::U512,
+    types::{U256, U512},
     utils::{parse_units, WEI_IN_ETHER},
 };
 use itertools::Itertools;
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
+use serde::__private::de;
 
 use crate::{
     env::{RuntimeCache, RuntimeConfig},
@@ -54,21 +54,44 @@ impl Route {
             }
             exchanges::types::Protocol::StableSwap => {
                 if first_market.stable == true {
-                    let token_in_pow: U256 = parse_units(1, first_market.tokens[0].decimals)
-                        .unwrap()
-                        .into();
-                    let token_out_pow: U256 = parse_units(1, first_market.tokens[1].decimals)
-                        .unwrap()
-                        .into();
+                    // let sorted_tokens = {
+                    //     match first_market.tokens[0].eq(self.base_token) {
+                    //         true => first_market.tokens,
+                    //         false => [first_market.tokens[1], first_market.tokens[0]],
+                    //     }
+                    // };
 
-                    let reserve_0 = circ_liquidity.0 * WEI_IN_ETHER / token_in_pow;
-                    let reserve_1 = circ_liquidity.1 * WEI_IN_ETHER / token_out_pow;
+                    // let token_in_pow: U256 =
+                    //     parse_units(1, sorted_tokens[0].decimals).unwrap().into();
+                    // let token_out_pow: U256 =
+                    //     parse_units(1, sorted_tokens[1].decimals).unwrap().into();
 
-                    let liquidity = exchanges::get_f(&reserve_0, &reserve_1) / WEI_IN_ETHER;
+                    // let reserve_0 = circ_liquidity.0 * WEI_IN_ETHER / token_in_pow;
+                    // let reserve_1 = circ_liquidity.1 * WEI_IN_ETHER / token_out_pow;
 
-                    ((liquidity * fee_multiplier) / multiplier).integer_sqrt()
-                    // ((circ_liquidity.0 * circ_liquidity.1 * fee_multiplier) / multiplier)
-                    //     .integer_sqrt()
+                    // println!(
+                    //     "in / out {} / {}",
+                    //     sorted_tokens[0].decimals, sorted_tokens[1].decimals
+                    // );
+
+                    // let a = (reserve_0 * reserve_1) / WEI_IN_ETHER;
+                    // let b = (reserve_0 * reserve_0) / WEI_IN_ETHER
+                    //     + (reserve_1 * reserve_1) / WEI_IN_ETHER;
+                    // let xy = a.full_mul(b) / WEI_IN_ETHER;
+
+                    // println!(
+                    //     "({:#?}, {:#?})",
+                    //     ((xy * U512::from(fee_multiplier)) / multiplier).integer_sqrt(),
+                    //     ((circ_liquidity.0 * circ_liquidity.1 * fee_multiplier) / multiplier)
+                    //         .integer_sqrt()
+                    // );
+
+                    //19080740700784316950000000000000000000
+                    // let liquidity = exchanges::get_k(&reserve_0, &reserve_1) * WEI_IN_ETHER;
+                    // println!("{}", liquidity);
+                    // ((liquidity * fee_multiplier) / multiplier).integer_sqrt()
+                    ((circ_liquidity.0 * circ_liquidity.1 * fee_multiplier) / multiplier)
+                        .integer_sqrt()
                 } else {
                     ((circ_liquidity.0 * circ_liquidity.1 * fee_multiplier) / multiplier)
                         .integer_sqrt()
@@ -81,47 +104,17 @@ impl Route {
                 let input_amount: U256 =
                     (liq_sqrt - circ_liquidity.0) * multiplier / fee_multiplier;
 
-                let result = match self.calculate_circ_profit(
+                println!("{}", input_amount);
+                return self.calculate_circ_profit(
                     reserve_table,
                     price_table,
                     input_amount,
                     self.base_token,
-                ) {
-                    Some(res) => res.ref_profit_loss,
-                    None => U256::zero(),
-                };
-
-                // let result = match self.calculate_circ_profit(
-                //     reserve_table,
-                //     price_table,
-                //     input_amount,
-                //     self.base_token){
-                //         Some(res) => res.ref_profit_loss,
-                //         None => U256::zero(),
-                //     };
-                // if let Some(s) = self.calculate_circ_profit(
-                //     reserve_table,
-                //     price_table,
-                //     input_amount,
-                //     self.base_token,
-                // ) {
-                //     println!("{:#?}", (s.ref_profit_loss));
-                // };
+                );
             }
         }
-        return None;
 
-        //         // let f = U256::from(input_amount.into());
-        //     return self.calculate_circ_profit(
-        //         reserve_table,
-        //         price_table,
-        //         U256::from(input_amount.as_u128()),
-        //         self.base_token,
-        //     );
-        // }
-        // else{
-        //     return None;
-        // }
+        return None;
     }
 
     #[inline(always)]
@@ -226,15 +219,11 @@ impl Route {
 
     #[inline(always)]
     pub fn new(markets: Vec<&'static OrgValue<Market>>, base_token: &'static Token) -> Route {
-        // let market_fee_data: Vec<(&U256, &U256)> =
-        // markets.iter().map(|x| x.value.get_fee_data()).collect_vec();
-
         let market_ids: Vec<usize> = markets.iter().map(|x| x.id).collect_vec();
 
         return Route {
             markets,
             base_token,
-            // market_fee_data,
             market_ids,
         };
     }

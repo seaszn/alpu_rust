@@ -12,8 +12,7 @@ use crate::{
     exchanges::{init_exchange_handlers, populate_swap},
     networks::Network,
     price_oracle::PriceOracle,
-    types::{BalanceChange, BundleExecutionCall, RouteResult},
-    RUNTIME_ROUTES,
+    types::{BalanceChange, BundleExecutionCall, RouteResult}, RUNTIME_ROUTES,
 };
 
 use super::{market_data_feed::get_network_data_feed, MarketDataFeed};

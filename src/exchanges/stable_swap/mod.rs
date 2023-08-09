@@ -333,7 +333,7 @@ pub fn get_f(x0: &U256, y: &U256) -> U256 {
 
 #[inline(always)]
 fn get_d(x0: &U256, y: &U256) -> U256 {
-    return U256::from(3) * x0 * (y * y / WEI_IN_ETHER) / WEI_IN_ETHER
+    return x0 * 3 * (y * y / WEI_IN_ETHER) / WEI_IN_ETHER
         + (x0 * x0 / WEI_IN_ETHER * x0 / WEI_IN_ETHER);
 }
 
@@ -364,8 +364,8 @@ pub fn calc_circ_liq_step(
     let reserve_1 = reserves.1 * WEI_IN_ETHER / token_out_pow;
 
     let denominator = get_d(&(amount_in_formatted + reserve_0), &reserve_1);
-    let l_0 = get_f(&previous.0, &reserve_0) / denominator; //. mul(token_in_pow.into()) / *POW_18_U512;
-    let l_1 = get_f(&amount_in_formatted, &reserve_1) / denominator;
+    let l_0 = (&previous.0 * &reserve_0) / denominator; //. mul(token_in_pow.into()) / *POW_18_U512;
+    let l_1 = (&amount_in_formatted * &reserve_1) / denominator;
 
     return (
         l_0 * token_in_pow / WEI_IN_ETHER,

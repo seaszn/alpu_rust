@@ -23,6 +23,7 @@ pub mod types;
 pub mod uniswap_v2;
 
 pub use stable_swap::get_f;
+pub use stable_swap::get_k;
 
 #[inline(always)]
 pub async fn get_exchange_markets(
@@ -174,7 +175,8 @@ pub fn calculate_circ_liquidity_step(
         Protocol::UniswapV2 => uniswap_v2::calc_circ_liq_step(previous_reserves, reserves, &market),
         Protocol::StableSwap => {
             if market.stable == true {
-                stable_swap::calc_circ_liq_step(previous_reserves, reserves, &market, token_in)
+                // stable_swap::calc_circ_liq_step(previous_reserves, reserves, &market, token_in)
+                uniswap_v2::calc_circ_liq_step(previous_reserves, reserves, &market)
             } else {
                 uniswap_v2::calc_circ_liq_step(previous_reserves, reserves, &market)
             }
