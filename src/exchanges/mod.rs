@@ -22,7 +22,6 @@ mod stable_swap;
 pub mod types;
 pub mod uniswap_v2;
 
-pub use stable_swap::get_f;
 pub use stable_swap::get_k;
 
 #[inline(always)]
@@ -142,14 +141,33 @@ pub fn calculate_amount_out(
     token_in: &'static Token,
 ) -> U256 {
     return match market_state {
-        MarketState::UniswapV2(reserves) => {
-            uniswap_v2::calculate_amount_out(market, reserves, &input_amount, token_in)
-        }
+        MarketState::UniswapV2(reserves) => uniswap_v2::calculate_amount_out(
+            market,
+            &sort_reserves(reserves, market, token_in),
+            &input_amount,
+        ),
         MarketState::StableSwap(reserves) => {
-            stable_swap::calculate_amount_out(market, reserves, &input_amount, token_in)
-            // stable_swap::calculate_amount_out(market, reserves, &input_amount, token_in)
+            stable_swap::calculate_amount_out(
+                market,
+                &sort_reserves(reserves, market, token_in),
+                &input_amount,
+                token_in
+            )
         }
     };
+}
+
+#[inline(always)]
+pub fn sort_reserves(
+    reserves: &(U256, U256),
+    market: &Market,
+    token_in: &'static Token,
+) -> (U256, U256) {
+    if token_in.eq(market.tokens[1]) {
+        return (reserves.1, reserves.0);
+    }
+
+    return *reserves;
 }
 
 #[inline(always)]
@@ -175,8 +193,8 @@ pub fn calculate_circ_liquidity_step(
         Protocol::UniswapV2 => uniswap_v2::calc_circ_liq_step(previous_reserves, reserves, &market),
         Protocol::StableSwap => {
             if market.stable == true {
-                // stable_swap::calc_circ_liq_step(previous_reserves, reserves, &market, token_in)
-                uniswap_v2::calc_circ_liq_step(previous_reserves, reserves, &market)
+                stable_swap::calc_circ_liq_step(previous_reserves, reserves, &market, token_in)
+                // unisw/ap_v2::calc_circ_liq_step(previous_reserves, reserves, &market)
             } else {
                 uniswap_v2::calc_circ_liq_step(previous_reserves, reserves, &market)
             }

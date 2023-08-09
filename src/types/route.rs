@@ -1,6 +1,6 @@
 use ethers::{
     types::{U256, U512},
-    utils::{parse_units, WEI_IN_ETHER},
+    utils::{format_units, parse_units, WEI_IN_ETHER},
 };
 use itertools::Itertools;
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
@@ -8,7 +8,7 @@ use serde::__private::de;
 
 use crate::{
     env::{RuntimeCache, RuntimeConfig},
-    exchanges::{self, calculate_circ_liquidity_step},
+    exchanges::{self, calculate_circ_liquidity_step, sort_reserves},
     networks::Network,
     RUNTIME_ROUTES,
 };
@@ -69,16 +69,28 @@ impl Route {
                     // let reserve_0 = circ_liquidity.0 * WEI_IN_ETHER / token_in_pow;
                     // let reserve_1 = circ_liquidity.1 * WEI_IN_ETHER / token_out_pow;
 
-                    // println!(
-                    //     "in / out {} / {}",
-                    //     sorted_tokens[0].decimals, sorted_tokens[1].decimals
-                    // );
-
                     // let a = (reserve_0 * reserve_1) / WEI_IN_ETHER;
-                    // let b = (reserve_0 * reserve_0) / WEI_IN_ETHER
-                    //     + (reserve_1 * reserve_1) / WEI_IN_ETHER;
-                    // let xy = a.full_mul(b) / WEI_IN_ETHER;
+                    // let b = (reserve_0 * reserve_0) / WEI_IN_ETHER+ (reserve_1 * reserve_1) / WEI_IN_ETHER;
+                    // let xy: U256 = parse_units(a.full_mul(b) / WEI_IN_ETHER, 0).unwrap().into();
+                    let liq_sqrt = ((circ_liquidity.0 * circ_liquidity.1) / multiplier).integer_sqrt();
 
+                    if liq_sqrt > (circ_liquidity.0 + 100) {
+                        let input_amount: U256 =
+                            (liq_sqrt - circ_liquidity.0) * multiplier / fee_multiplier;
+        
+                        if let Some(res) = self.calculate_circ_profit(
+                            reserve_table,
+                            price_table,
+                            input_amount,
+                            self.base_token,
+                        ) {
+                            println!(
+                                "{} {}",
+                                format_units(res.profit_loss, res.base_token.decimals).unwrap(),
+                                (res.base_token).clone().ref_symbol.unwrap()
+                            );
+                        }
+                    }
                     // println!(
                     //     "({:#?}, {:#?})",
                     //     ((xy * U512::from(fee_multiplier)) / multiplier).integer_sqrt(),
@@ -87,7 +99,7 @@ impl Route {
                     // );
 
                     //19080740700784316950000000000000000000
-                    // let liquidity = exchanges::get_k(&reserve_0, &reserve_1) * WEI_IN_ETHER;
+                    // let liquidity = exchanges::get_k(&reserve_0, &reserve_1) * token_out_pow / WEI_IN_ETHER;
                     // println!("{}", liquidity);
                     // ((liquidity * fee_multiplier) / multiplier).integer_sqrt()
                     ((circ_liquidity.0 * circ_liquidity.1 * fee_multiplier) / multiplier)
@@ -100,17 +112,22 @@ impl Route {
         };
 
         if self.markets.par_iter().any(|x| x.value.stable == true) {
-            if liq_sqrt > circ_liquidity.0 {
+            if liq_sqrt > (circ_liquidity.0 + 100) {
                 let input_amount: U256 =
                     (liq_sqrt - circ_liquidity.0) * multiplier / fee_multiplier;
 
-                println!("{}", input_amount);
-                return self.calculate_circ_profit(
+                if let Some(res) = self.calculate_circ_profit(
                     reserve_table,
                     price_table,
                     input_amount,
                     self.base_token,
-                );
+                ) {
+                    println!(
+                        "{} {}",
+                        format_units(res.profit_loss, res.base_token.decimals).unwrap(),
+                        (res.base_token).clone().ref_symbol.unwrap()
+                    );
+                }
             }
         }
 
@@ -122,16 +139,17 @@ impl Route {
         let first_reserve = &reserve_table[self.markets[0].id];
         let mut token_in = self.base_token;
 
-        let mut res = first_reserve.value.get_reserves();
-        if self.markets[0].value.tokens[0].ne(token_in) {
-            res = (res.1, res.0);
-        }
+        let mut res = sort_reserves(
+            &first_reserve.value.get_reserves(),
+            &self.markets[0].value,
+            token_in,
+        );
 
         for i in 1..self.markets.len() {
             let market = self.markets[i];
             let market_org_value = &reserve_table[market.id];
-
             let market_reserves = market_org_value.value.get_reserves();
+
             if market.value.tokens[0].eq(token_in) {
                 res = calculate_circ_liquidity_step(&market.value, market_reserves, &res, token_in);
                 token_in = market.value.tokens[1];
@@ -168,7 +186,6 @@ impl Route {
             // println!("test");
             if token_in == token_0 {
                 input_amount = market_value.amount_out(&market_state, &input_amount, token_in);
-                // market_value.amount_out(&market_state, &input_amount, token_in);
                 token_in = market_value.tokens[1];
 
                 swap_transactions.add_value(SwapLog {
@@ -177,7 +194,6 @@ impl Route {
                     amount_1_out: input_amount,
                 });
             } else {
-                // market_value.amount_out(&market_state, &input_amount, token_in);
                 input_amount = market_value.amount_out(&market_state, &input_amount, token_in);
                 token_in = token_0;
 
@@ -196,7 +212,8 @@ impl Route {
                 start_balance: _start_balance,
                 end_balance: input_amount,
                 profit_loss,
-                ref_profit_loss: price_table.get_ref_price(self.base_token, profit_loss),
+                ref_profit_loss: U256::zero(),
+                // ref_profit_loss: price_table.get_ref_price(self.base_token, profit_loss),
                 transactions: swap_transactions,
             });
         } else {

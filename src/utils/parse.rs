@@ -1,4 +1,4 @@
-use ethers::prelude::*;
+use ethers::{prelude::*, utils::parse_units};
 use url::Url;
 
 pub fn url(input: String) -> Url {
@@ -39,26 +39,26 @@ pub fn address(input: String) -> Address {
 }
 
 pub fn dec_to_u256(dec: &str, unit: u32) -> U256 {
-    return U256::from(dec_to_u128(dec, unit));
+    return parse_units(dec, unit).unwrap().into();
 }
 
-pub fn dec_to_u128(dec: &str, unit: u32) -> u128 {
-    if let Some(decimal_index) = dec.chars().position(|x| x == '.') {
-        let decimal_count = (dec.len() - decimal_index) as u32;
+// pub fn dec_to_u128(dec: &str, unit: u32) -> u128 {
+//     if let Some(decimal_index) = dec.chars().position(|x| x == '.') {
+//         let decimal_count = (dec.len() - decimal_index) as u32;
 
-        if decimal_count > unit {
-            let abs_length = dec.len() - (decimal_count as usize);
-            return dec
-                .replace(".", "")
-                .split_at(abs_length + unit as usize)
-                .0
-                .parse::<u128>()
-                .unwrap();
-        }
+//         if decimal_count > unit {
+//             let abs_length = dec.len() - (decimal_count as usize);
+//             return dec
+//                 .replace(".", "")
+//                 .split_at(abs_length + unit as usize)
+//                 .0
+//                 .parse::<u128>()
+//                 .unwrap();
+//         }
 
-        return dec.replace(".", "").parse::<u128>().unwrap()
-            * 10u128.pow((unit - decimal_count) + 1);
-    } else {
-        panic!("wrong input");
-    }
-}
+//         return dec.replace(".", "").parse::<u128>().unwrap()
+//             * 10u128.pow((unit - decimal_count) + 1);
+//     } else {
+//         panic!("wrong input");
+//     }
+// }

@@ -20,7 +20,7 @@ use crate::{
     env::{RuntimeCache, RuntimeConfig},
     networks::Network,
     types::{
-        market::Market, BalanceChange, OrgValue, OrganizedList, SwapLog, Token, TransactionLog,
+        market::Market, BalanceChange, OrgValue, OrganizedList, SwapLog, TransactionLog,
     },
 };
 
@@ -249,22 +249,14 @@ pub async fn get_market_reserves(
 #[inline(always)]
 pub fn calculate_amount_out(
     market: &Market,
-    reserves: &(U256, U256),
+    (reserve_in, reserve_out): &(U256, U256),
     input_amount: &U256,
-    token_in: &'static Token,
 ) -> U256 {
     let (fee_multiplier, multiplier) = market.get_fee_data();
-    let amount_in_with_fee = input_amount * fee_multiplier;
+    let amount_in_with_fee = input_amount * fee_multiplier / multiplier;
 
-    let numerator;
-    let denominator;
-    if token_in.eq(market.tokens[0]) {
-        numerator = amount_in_with_fee * reserves.1;
-        denominator = (reserves.0 * multiplier) + amount_in_with_fee;
-    } else {
-        numerator = amount_in_with_fee * reserves.0;
-        denominator = (reserves.1 * multiplier) + amount_in_with_fee;
-    }
+    let numerator = amount_in_with_fee * reserve_out;
+    let denominator = reserve_in + amount_in_with_fee;
 
     return numerator / denominator;
 }
