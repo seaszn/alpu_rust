@@ -43,6 +43,7 @@ impl Route {
         reserve_table: &OrganizedList<MarketState>,
         price_table: &PriceTable,
     ) -> Option<RouteResult> {
+        //print!("- circ liq -> ");
         let circ_liquidity = self.calculate_circ_liquidity(reserve_table);
 
         let (fee_multiplier, multiplier) = self.markets[0].value.get_fee_data();
@@ -116,17 +117,18 @@ impl Route {
                 let input_amount: U256 =
                     (liq_sqrt - circ_liquidity.0) * multiplier / fee_multiplier;
 
+                println!("IN: {}", input_amount);
                 if let Some(res) = self.calculate_circ_profit(
                     reserve_table,
                     price_table,
                     input_amount,
                     self.base_token,
                 ) {
-                    println!(
-                        "{} {}",
-                        format_units(res.profit_loss, res.base_token.decimals).unwrap(),
-                        (res.base_token).clone().ref_symbol.unwrap()
-                    );
+                    // println!(
+                    //     "IN: {} {}",
+                    //     format_units(res.profit_loss, res.base_token.decimals).unwrap(),
+                    //     (res.base_token).clone().ref_symbol.unwrap()
+                    // );
                 }
             }
         }

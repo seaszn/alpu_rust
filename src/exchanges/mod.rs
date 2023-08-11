@@ -149,7 +149,7 @@ pub fn calculate_amount_out(
         MarketState::StableSwap(reserves) => {
             stable_swap::calculate_amount_out(
                 market,
-                &sort_reserves(reserves, market, token_in),
+                reserves,
                 &input_amount,
                 token_in
             )
