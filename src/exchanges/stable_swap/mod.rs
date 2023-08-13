@@ -8,7 +8,7 @@ use crate::{
 use ethers::{
     abi::{AbiParser, Function},
     prelude::*,
-    utils::{parse_units, WEI_IN_ETHER},
+    utils::WEI_IN_ETHER,
 };
 use itertools::Itertools;
 use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
@@ -256,38 +256,53 @@ pub fn calculate_amount_out(
     token_in: &'static Token,
 ) -> U256 {
     if market.stable == true {
-        let (fee_mul, mul) = market.get_fee_data();
-        let feed_input_amount = input_amount * fee_mul / mul;
+        if token_in.eq(market.tokens[0]) {
+            return uniswap_v2::calculate_amount_out(
+                market,
+                &(*reserve_0, *reserve_1),
+                input_amount,
+            );
+        } else {
+            return uniswap_v2::calculate_amount_out(
+                market,
+                &(*reserve_1, *reserve_0),
+                input_amount,
+            );
+        }
+        // let (fee_mul, mul) = market.get_fee_data();
+        // let feed_input_amount = input_amount * fee_mul / mul;
 
-        let token_0_pow: U256 = parse_units(1, market.tokens[0].decimals).unwrap().into();
-        let token_1_pow: U256 = parse_units(1, market.tokens[1].decimals).unwrap().into();
+        // let token_0_pow: U256 = parse_units(1, market.tokens[0].decimals).unwrap().into();
+        // let token_1_pow: U256 = parse_units(1, market.tokens[1].decimals).unwrap().into();
 
-        let (token_in_pow, token_out_pow) = {
-            if token_in.eq(market.tokens[0]) {
-                (token_0_pow, token_1_pow)
-            } else {
-                (token_1_pow, token_0_pow)
-            }
-        };
+        // let (token_in_pow, token_out_pow) = {
+        //     if token_in.eq(market.tokens[0]) {
+        //         (token_0_pow, token_1_pow)
+        //     } else {
+        //         (token_1_pow, token_0_pow)
+        //     }
+        // };
 
-        let (reserve_0_pow, reserve_1_pow) = (
-            reserve_0 * WEI_IN_ETHER / token_0_pow,
-            reserve_1 * WEI_IN_ETHER / token_1_pow,
-        );
+        // let (reserve_0_pow, reserve_1_pow) = (
+        //     reserve_0 * WEI_IN_ETHER / token_0_pow,
+        //     reserve_1 * WEI_IN_ETHER / token_1_pow,
+        // );
 
-        let xy = get_k(&reserve_0_pow, &reserve_1_pow);
-        let amount_in_formatted = feed_input_amount * WEI_IN_ETHER / token_in_pow;
+        // let xy = get_k(&reserve_0_pow, &reserve_1_pow);
+        // let amount_in_formatted = feed_input_amount * WEI_IN_ETHER / token_in_pow;
 
-        let (reserve_a, reserve_b) = {
-            if token_in.eq(market.tokens[0]) {
-                (reserve_0_pow, reserve_1_pow)
-            } else {
-                (reserve_1_pow, reserve_0_pow)
-            }
-        };
+        // let (reserve_a, reserve_b) = {
+        //     if token_in.eq(market.tokens[0]) {
+        //         (reserve_0_pow, reserve_1_pow)
+        //     } else {
+        //         (reserve_1_pow, reserve_0_pow)
+        //     }
+        // };
 
-        let y = reserve_b - get_y(amount_in_formatted + reserve_a, xy, reserve_b);
-        return y * token_out_pow / WEI_IN_ETHER;
+        // let y = reserve_b - get_y(amount_in_formatted + reserve_a, xy, reserve_b);
+        // return y * token_out_pow / WEI_IN_ETHER;
+
+        // ----
 
         // let amount_in_with_fee = (input_amount * fee_mul) / mul;
         // let reserve_0_formatted = reserve_0 * WEI_IN_ETHER / token_0_pow;
