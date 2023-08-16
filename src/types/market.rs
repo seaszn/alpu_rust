@@ -67,7 +67,7 @@ impl Market {
     }
 
     #[inline(always)]
-    pub fn amount_out(&self, market_state: &MarketState, input_amount: &U256, token_in: &'static Token) -> U256{
+    pub fn amount_out(&self, market_state: &MarketState, input_amount: &U256, token_in: &'static Token) -> Option<U256>{
         return calculate_amount_out(market_state, input_amount, self, token_in);
     }
 }

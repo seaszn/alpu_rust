@@ -251,14 +251,16 @@ pub fn calculate_amount_out(
     market: &Market,
     (reserve_in, reserve_out): &(U256, U256),
     input_amount: &U256,
-) -> U256 {
+) -> Option<U256> {
+    // println!("uniswap");
+
     let (fee_multiplier, multiplier) = market.get_fee_data();
     let amount_in_with_fee = input_amount * fee_multiplier / multiplier;
 
     let numerator = amount_in_with_fee * reserve_out;
     let denominator = reserve_in + amount_in_with_fee;
 
-    return numerator / denominator;
+    return Some(numerator / denominator);
 }
 
 #[inline(always)]

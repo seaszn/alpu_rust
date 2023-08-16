@@ -2,6 +2,7 @@ pub mod market;
 mod token;
 mod transaction_log;
 
+mod hex_num;
 mod route;
 mod market_state;
 mod org_list;
@@ -12,6 +13,7 @@ mod balance_change;
 mod relay_message;
 mod transaction_decode_result;
 
+pub use hex_num::HexNum as HexNum;
 pub use market_state::*;
 pub use transaction_decode_result::TransactionDecodeResult;
 pub use balance_change::BalanceChange;

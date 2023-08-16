@@ -1,10 +1,9 @@
 use ethers::{
-    types::{U256, U512},
+    types::U256,
     utils::{format_units, parse_units, WEI_IN_ETHER},
 };
 use itertools::Itertools;
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
-use serde::__private::de;
 
 use crate::{
     env::{RuntimeCache, RuntimeConfig},
@@ -55,43 +54,49 @@ impl Route {
             }
             exchanges::types::Protocol::StableSwap => {
                 if first_market.stable == true {
-                    // let sorted_tokens = {
-                    //     match first_market.tokens[0].eq(self.base_token) {
-                    //         true => first_market.tokens,
-                    //         false => [first_market.tokens[1], first_market.tokens[0]],
-                    //     }
-                    // };
-
-                    // let token_in_pow: U256 =
-                    //     parse_units(1, sorted_tokens[0].decimals).unwrap().into();
-                    // let token_out_pow: U256 =
-                    //     parse_units(1, sorted_tokens[1].decimals).unwrap().into();
-
-                    // let reserve_0 = circ_liquidity.0 * WEI_IN_ETHER / token_in_pow;
-                    // let reserve_1 = circ_liquidity.1 * WEI_IN_ETHER / token_out_pow;
-
-                    // let a = (reserve_0 * reserve_1) / WEI_IN_ETHER;
-                    // let b = (reserve_0 * reserve_0) / WEI_IN_ETHER+ (reserve_1 * reserve_1) / WEI_IN_ETHER;
-                    // let xy: U256 = parse_units(a.full_mul(b) / WEI_IN_ETHER, 0).unwrap().into();
-                    let liq_sqrt = ((circ_liquidity.0 * circ_liquidity.1) / multiplier).integer_sqrt();
-
-                    if liq_sqrt > (circ_liquidity.0 + 100) {
-                        let input_amount: U256 =
-                            (liq_sqrt - circ_liquidity.0) * multiplier / fee_multiplier;
-        
-                        if let Some(res) = self.calculate_circ_profit(
-                            reserve_table,
-                            price_table,
-                            input_amount,
-                            self.base_token,
-                        ) {
-                            println!(
-                                "{} {}",
-                                format_units(res.profit_loss, res.base_token.decimals).unwrap(),
-                                (res.base_token).clone().ref_symbol.unwrap()
-                            );
+                    let sorted_tokens = {
+                        match first_market.tokens[0].eq(self.base_token) {
+                            true => first_market.tokens,
+                            false => [first_market.tokens[1], first_market.tokens[0]],
                         }
-                    }
+                    };
+
+                    let token_in_pow: U256 =
+                        parse_units(1, sorted_tokens[0].decimals).unwrap().into();
+                    let token_out_pow: U256 =
+                        parse_units(1, sorted_tokens[1].decimals).unwrap().into();
+
+                    let reserve_0 = circ_liquidity.0 * WEI_IN_ETHER / token_in_pow;
+                    let reserve_1 = circ_liquidity.1 * WEI_IN_ETHER / token_out_pow;
+
+                    let a = (reserve_0 * reserve_1) / WEI_IN_ETHER;
+                    let b = (reserve_0 * reserve_0) / WEI_IN_ETHER
+                        + (reserve_1 * reserve_1) / WEI_IN_ETHER;
+                    let xy: U256 = parse_units(a.full_mul(b) / WEI_IN_ETHER, 0).unwrap().into();
+                    let xy_formatted = xy * token_out_pow / WEI_IN_ETHER;
+
+                    let fin = ((xy_formatted * fee_multiplier) / multiplier).integer_sqrt();
+
+                        if fin > (circ_liquidity.0 + 100) {
+                            let input_amount: U256 =
+                                (fin - circ_liquidity.0) * multiplier / fee_multiplier;
+
+                            println!("IN: {}", input_amount);
+                            if let Some(res) = self.calculate_circ_profit(
+                                reserve_table,
+                                price_table,
+                                input_amount,
+                                self.base_token,
+                            ) {
+                                println!(
+                                    "OUT: {} {}\n",
+                                    format_units(res.profit_loss, res.base_token.decimals).unwrap(),
+                                    (res.base_token).clone().ref_symbol.unwrap()
+                                );
+                            } else {
+                                // println!("OUT: 0 {}\n", (self.base_token).clone().ref_symbol.unwrap());
+                            }
+                        }
                     // println!(
                     //     "({:#?}, {:#?})",
                     //     ((xy * U512::from(fee_multiplier)) / multiplier).integer_sqrt(),
@@ -111,27 +116,6 @@ impl Route {
                 }
             }
         };
-
-        if self.markets.par_iter().any(|x| x.value.stable == true) {
-            if liq_sqrt > (circ_liquidity.0 + 100) {
-                let input_amount: U256 =
-                    (liq_sqrt - circ_liquidity.0) * multiplier / fee_multiplier;
-
-                println!("IN: {}", input_amount);
-                if let Some(res) = self.calculate_circ_profit(
-                    reserve_table,
-                    price_table,
-                    input_amount,
-                    self.base_token,
-                ) {
-                    // println!(
-                    //     "IN: {} {}",
-                    //     format_units(res.profit_loss, res.base_token.decimals).unwrap(),
-                    //     (res.base_token).clone().ref_symbol.unwrap()
-                    // );
-                }
-            }
-        }
 
         return None;
     }
@@ -187,23 +171,31 @@ impl Route {
 
             // println!("test");
             if token_in == token_0 {
-                input_amount = market_value.amount_out(&market_state, &input_amount, token_in);
-                token_in = market_value.tokens[1];
+                if let Some(res) = market_value.amount_out(&market_state, &input_amount, token_in) {
+                    input_amount = res;
+                    token_in = market_value.tokens[1];
 
-                swap_transactions.add_value(SwapLog {
-                    market: &market,
-                    amount_0_out: ZERO_VALUE,
-                    amount_1_out: input_amount,
-                });
+                    swap_transactions.add_value(SwapLog {
+                        market: &market,
+                        amount_0_out: ZERO_VALUE,
+                        amount_1_out: input_amount,
+                    });
+                } else {
+                    return None;
+                }
             } else {
-                input_amount = market_value.amount_out(&market_state, &input_amount, token_in);
-                token_in = token_0;
+                if let Some(res) = market_value.amount_out(&market_state, &input_amount, token_in) {
+                    input_amount = res;
+                    token_in = token_0;
 
-                swap_transactions.add_value(SwapLog {
-                    market: &market,
-                    amount_0_out: input_amount,
-                    amount_1_out: ZERO_VALUE,
-                });
+                    swap_transactions.add_value(SwapLog {
+                        market: &market,
+                        amount_0_out: input_amount,
+                        amount_1_out: ZERO_VALUE,
+                    });
+                } else {
+                    return None;
+                }
             }
         }
 

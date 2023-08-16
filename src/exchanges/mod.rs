@@ -139,7 +139,7 @@ pub fn calculate_amount_out(
     input_amount: &U256,
     market: &Market,
     token_in: &'static Token,
-) -> U256 {
+) -> Option<U256> {
     return match market_state {
         MarketState::UniswapV2(reserves) => uniswap_v2::calculate_amount_out(
             market,
