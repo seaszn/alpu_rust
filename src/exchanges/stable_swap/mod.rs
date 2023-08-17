@@ -180,13 +180,16 @@ pub async fn get_markets(
                                             exchange.base_fee
                                         }
                                     };
-                                    result.push(Market::new(
-                                        element[3],
-                                        [token_0_instance, token_1_instance],
-                                        fee,
-                                        stable,
-                                        exchange.protocol,
-                                    ));
+
+                                    if (stable == false) {
+                                        result.push(Market::new(
+                                            element[3],
+                                            [token_0_instance, token_1_instance],
+                                            fee,
+                                            stable,
+                                            exchange.protocol,
+                                        ));
+                                    }
                                 }
                             }
                         }
@@ -270,7 +273,7 @@ pub fn calculate_amount_out(
         );
 
         let xy = get_k(&reserve_0_pow, &reserve_1_pow);
-        
+
         let (token_in_pow, token_out_pow) = {
             if token_in.eq(market.tokens[0]) {
                 (token_0_pow, token_1_pow)
@@ -278,7 +281,7 @@ pub fn calculate_amount_out(
                 (token_1_pow, token_0_pow)
             }
         };
-        
+
         let (reserve_a, reserve_b) = {
             if token_in.eq(market.tokens[0]) {
                 (reserve_0_pow, reserve_1_pow)
@@ -286,7 +289,7 @@ pub fn calculate_amount_out(
                 (reserve_1_pow, reserve_0_pow)
             }
         };
-        
+
         let amount_in_formatted = feed_input_amount * WEI_IN_ETHER / token_in_pow;
         let y_raw = get_y(amount_in_formatted + reserve_a, xy, reserve_b);
         if reserve_b > y_raw {
@@ -367,30 +370,45 @@ pub fn calc_circ_liq_step(
 ) -> (U256, U256) {
     let (fee_multiplier, mul) = market.get_fee_data();
 
-    // let sorted_tokens: [&Token; 2] = {
-    //     if token_in.eq(market.tokens[0]) {
-    //         market.tokens
-    //     } else {
-    //         [market.tokens[1], market.tokens[0]]
-    //     }
-    // };
+    let sorted_tokens: [&Token; 2] = {
+        if token_in.eq(market.tokens[0]) {
+            market.tokens
+        } else {
+            [market.tokens[1], market.tokens[0]]
+        }
+    };
 
-    // let token_in_pow: U256 = parse_units(1, sorted_tokens[0].decimals).unwrap().into();
-    // let token_out_pow: U256 = parse_units(1, sorted_tokens[1].decimals).unwrap().into();
+    let sorted_reserves = {
+        if token_in.eq(market.tokens[0]) {
+            reserves
+        } else {
+            (reserves.1, reserves.0)
+        }
+    };
 
-    // let reserve_0 = reserves.0 * WEI_IN_ETHER / token_in_pow;
-    // let reserve_1 = reserves.1 * WEI_IN_ETHER / token_out_pow;
+    let token_in_pow: U256 = parse_units(1, sorted_tokens[0].decimals).unwrap().into();
+    let token_out_pow: U256 = parse_units(1, sorted_tokens[1].decimals).unwrap().into();
+
+    let reserve_0 = sorted_reserves.0 * WEI_IN_ETHER / token_in_pow;
+    let reserve_1 = sorted_reserves.1 * WEI_IN_ETHER / token_out_pow;
+
+    let amount_in_with_fee = (previous.1 * WEI_IN_ETHER / token_in_pow) * fee_multiplier / mul;
+    let denominator = get_d(&(&amount_in_with_fee + reserve_0), &reserve_1);
+
+    let l_0_raw = get_k(&(previous.0 * WEI_IN_ETHER / token_in_pow), &reserve_0) / denominator;
+    let l_1_raw = get_k(&(&amount_in_with_fee), &reserve_1) / denominator;
 
     // let a = (reserves.0 * reserves.1) / token_out_pow;
     // let b = (reserves.0 * reserves.0) / token_in_pow + (reserves.0 * y) / WEI_IN_ETHER;
     // let liquidity = get_k(&reserve_0, &reserve_1) / WEI_IN_ETHER;
-    // let denominator = get_d(&(amount_in_formatted + reserve_0), &reserve_1);
 
-    let amount_in_with_fee = previous.1 * fee_multiplier / mul;
-    let denominator = amount_in_with_fee + reserves.0;
+    // let denominator = amount_in_with_fee + reserves.0;
 
-    let l_0 = (previous.0 * reserves.0) / denominator;
-    let l_1 = (amount_in_with_fee * reserves.1) / denominator;
+    // let l_0 = (previous.0 * reserves.0) / denominator;
+    // let l_1 = (amount_in_with_fee * reserves.1) / denominator;
 
-    return (l_0, l_1);
+    return (
+        l_0_raw * token_in_pow / WEI_IN_ETHER,
+        l_1_raw * token_out_pow / WEI_IN_ETHER,
+    );
 }

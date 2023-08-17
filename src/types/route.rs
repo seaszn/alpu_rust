@@ -77,26 +77,26 @@ impl Route {
 
                     let fin = ((xy_formatted * fee_multiplier) / multiplier).integer_sqrt();
 
-                        if fin > (circ_liquidity.0 + 100) {
-                            let input_amount: U256 =
-                                (fin - circ_liquidity.0) * multiplier / fee_multiplier;
+                    if fin > (circ_liquidity.0 + 100) {
+                        let input_amount: U256 =
+                            (fin - circ_liquidity.0) * multiplier / fee_multiplier;
 
-                            println!("IN: {}", input_amount);
-                            if let Some(res) = self.calculate_circ_profit(
-                                reserve_table,
-                                price_table,
-                                input_amount,
-                                self.base_token,
-                            ) {
-                                println!(
-                                    "OUT: {} {}\n",
-                                    format_units(res.profit_loss, res.base_token.decimals).unwrap(),
-                                    (res.base_token).clone().ref_symbol.unwrap()
-                                );
-                            } else {
-                                // println!("OUT: 0 {}\n", (self.base_token).clone().ref_symbol.unwrap());
-                            }
+                        println!("IN: {}", input_amount);
+                        if let Some(res) = self.calculate_circ_profit(
+                            reserve_table,
+                            price_table,
+                            input_amount,
+                            self.base_token,
+                        ) {
+                            println!(
+                                "OUT: {} {}\n",
+                                format_units(res.profit_loss, res.base_token.decimals).unwrap(),
+                                (res.base_token).clone().ref_symbol.unwrap()
+                            );
+                        } else {
+                            // println!("OUT: 0 {}\n", (self.base_token).clone().ref_symbol.unwrap());
                         }
+                    }
                     // println!(
                     //     "({:#?}, {:#?})",
                     //     ((xy * U512::from(fee_multiplier)) / multiplier).integer_sqrt(),
